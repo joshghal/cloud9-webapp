@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSocket } from '@/hooks/useSocket';
 import { Scoreboard } from '@/components/panels/Scoreboard';
 import { TiltGraph } from '@/components/charts/TiltGraph';
 import { TimeoutAlert } from '@/components/alerts/TimeoutAlert';
+import { MapCanvas } from '@/components/map/MapCanvas';
 import type { TimeoutAlert as TimeoutAlertType } from '@/types';
 
 export default function Home() {
@@ -17,6 +18,9 @@ export default function Home() {
     roundData,
     alerts,
     tradeTimeHistory,
+    roundDeaths,
+    playerPositions,
+    mapBounds,
     replayComplete,
     startReplay,
     stopReplay,
@@ -192,32 +196,32 @@ export default function Home() {
                 />
               </div>
 
-              {/* Map Visualization - TODO Week 1 Day 1-2 */}
+              {/* Map Visualization - Deaths */}
               <div className="card">
-                <h3 className="card-header">Map View</h3>
-                <div className="map-container bg-[#060d17] flex items-center justify-center">
-                  <div className="text-center text-[#a0aec0]">
-                    <svg className="w-16 h-16 mx-auto mb-4 opacity-30" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                    </svg>
-                    <p className="text-sm">Map visualization</p>
-                    <p className="text-xs">Coming in Week 1</p>
-                  </div>
-                </div>
+                <h3 className="card-header">Round Deaths</h3>
+                <MapCanvas
+                  mapName={roundData?.map || 'Unknown'}
+                  deaths={roundDeaths}
+                  bounds={mapBounds || undefined}
+                />
               </div>
 
-              {/* Trade Web - TODO Week 1 Day 3-4 */}
+              {/* Trade Web - Player Positions */}
               <div className="card">
                 <h3 className="card-header">Trade Web</h3>
-                <div className="map-container bg-[#060d17] flex items-center justify-center">
-                  <div className="text-center text-[#a0aec0]">
-                    <svg className="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    <p className="text-sm">Trade web visualization</p>
-                    <p className="text-xs">Coming in Week 1</p>
-                  </div>
-                </div>
+                <MapCanvas
+                  mapName={roundData?.map || 'Unknown'}
+                  deaths={[]}
+                  playerPositions={Object.entries(playerPositions).map(([name, pos]) => ({
+                    name,
+                    x: pos[0],
+                    y: pos[1],
+                    team: 'c9' as const, // TODO: Track team from backend
+                  }))}
+                  showTradeWeb={true}
+                  tradeableThreshold={2000}
+                  bounds={mapBounds || undefined}
+                />
               </div>
             </div>
 

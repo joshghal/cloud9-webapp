@@ -8,8 +8,24 @@ import type {
   KillEvent,
   MatchInfo,
   ReplayComplete,
-  TradeTimeEntry
+  TradeTimeEntry,
+  MapBounds
 } from '@/types';
+
+interface DeathEvent {
+  id: string;
+  x: number;
+  y: number;
+  player: string;
+  team: 'c9' | 'opp';
+  killer: string;
+  round: number;
+}
+
+interface PositionUpdate {
+  positions: Record<string, [number, number]>;
+  map_bounds: MapBounds;
+}
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
 
@@ -29,6 +45,12 @@ interface UseSocketReturn {
   killFeed: KillEvent[];
   tradeTimeHistory: TradeTimeEntry[];
 
+  // Map visualization data
+  deaths: DeathEvent[];
+  roundDeaths: DeathEvent[];
+  playerPositions: Record<string, [number, number]>;
+  mapBounds: MapBounds | null;
+
   // Replay complete data
   replayComplete: ReplayComplete | null;
 
@@ -39,6 +61,7 @@ interface UseSocketReturn {
   pauseReplay: () => void;
   resumeReplay: () => void;
   fetchMatches: () => void;
+  clearRoundDeaths: () => void;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -54,6 +77,13 @@ export function useSocket(): UseSocketReturn {
   const [alerts, setAlerts] = useState<TimeoutAlert[]>([]);
   const [killFeed, setKillFeed] = useState<KillEvent[]>([]);
   const [tradeTimeHistory, setTradeTimeHistory] = useState<TradeTimeEntry[]>([]);
+
+  // Map visualization state
+  const [deaths, setDeaths] = useState<DeathEvent[]>([]);
+  const [roundDeaths, setRoundDeaths] = useState<DeathEvent[]>([]);
+  const [playerPositions, setPlayerPositions] = useState<Record<string, [number, number]>>({});
+  const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
+  const deathIdCounter = useRef(0);
 
   const [replayComplete, setReplayComplete] = useState<ReplayComplete | null>(null);
 
@@ -100,7 +130,11 @@ export function useSocket(): UseSocketReturn {
       setAlerts([]);
       setKillFeed([]);
       setTradeTimeHistory([]);
+      setDeaths([]);
+      setRoundDeaths([]);
+      setPlayerPositions({});
       setReplayComplete(null);
+      deathIdCounter.current = 0;
       console.log(`Replay started: ${data.match} at ${data.speed}x`);
     });
 
@@ -148,6 +182,39 @@ export function useSocket(): UseSocketReturn {
 
     socket.on('kill_event', (data: KillEvent) => {
       setKillFeed(prev => [...prev.slice(-19), data]); // Keep last 20
+    });
+
+    // Death event with position for map visualization
+    socket.on('death_event', (data: {
+      x: number;
+      y: number;
+      player: string;
+      team: 'c9' | 'opp';
+      killer: string;
+      round: number;
+    }) => {
+      const death: DeathEvent = {
+        ...data,
+        id: `death-${deathIdCounter.current++}`,
+      };
+      setDeaths(prev => [...prev, death]);
+      setRoundDeaths(prev => [...prev, death]);
+    });
+
+    // Position updates for trade web
+    socket.on('position_update', (data: PositionUpdate) => {
+      setPlayerPositions(data.positions);
+      if (data.map_bounds) {
+        setMapBounds(data.map_bounds);
+      }
+    });
+
+    // Round start - clear round deaths
+    socket.on('round_start', (data: { round: number; map_bounds?: MapBounds }) => {
+      setRoundDeaths([]);
+      if (data.map_bounds) {
+        setMapBounds(data.map_bounds);
+      }
     });
 
     socket.on('speed_changed', (data: { speed: number }) => {
@@ -206,6 +273,11 @@ export function useSocket(): UseSocketReturn {
     }
   }, []);
 
+  // Clear round deaths manually
+  const clearRoundDeaths = useCallback(() => {
+    setRoundDeaths([]);
+  }, []);
+
   return {
     isConnected,
     isRunning,
@@ -216,6 +288,10 @@ export function useSocket(): UseSocketReturn {
     alerts,
     killFeed,
     tradeTimeHistory,
+    deaths,
+    roundDeaths,
+    playerPositions,
+    mapBounds,
     replayComplete,
     startReplay,
     stopReplay,
@@ -223,5 +299,6 @@ export function useSocket(): UseSocketReturn {
     pauseReplay,
     resumeReplay,
     fetchMatches,
+    clearRoundDeaths,
   };
 }
