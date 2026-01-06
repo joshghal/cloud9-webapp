@@ -1,26 +1,310 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Cloud9 Brand Colors */
+  --c9-blue: #00a8e8;
+  --c9-blue-dark: #0090c5;
+  --c9-dark: #0a1628;
+  --c9-darker: #060d17;
+
+  /* UI Colors */
+  --alert-red: #ff4757;
+  --alert-yellow: #ffa502;
+  --success-green: #2ed573;
+  --text-white: #ffffff;
+  --text-gray: #a0aec0;
+  --card-bg: #1a2744;
+  --card-bg-light: #243350;
+
+  /* Applied */
+  --background: var(--c9-dark);
+  --foreground: var(--text-white);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-c9-blue: var(--c9-blue);
+  --color-c9-dark: var(--c9-dark);
+  --color-alert-red: var(--alert-red);
+  --color-alert-yellow: var(--alert-yellow);
+  --color-success-green: var(--success-green);
+  --color-card-bg: var(--card-bg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes deathPulse {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.5); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes alertGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 71, 87, 0.5); }
+  50% { box-shadow: 0 0 40px rgba(255, 71, 87, 0.8), 0 0 60px rgba(255, 71, 87, 0.4); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes graphLine {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s infinite;
+}
+
+.animate-pulse-fast {
+  animation: pulse 1s infinite;
+}
+
+.animate-death-pulse {
+  animation: deathPulse 0.5s ease-out forwards;
+}
+
+.animate-alert-glow {
+  animation: alertGlow 1.5s ease-in-out infinite;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Card styles */
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.card-header {
+  font-size: 0.875rem;
+  color: var(--text-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+/* Status indicator */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-gray);
+}
+
+.status-dot.connected {
+  background: var(--success-green);
+  animation: pulse 2s infinite;
+}
+
+.status-dot.running {
+  background: var(--c9-blue);
+  animation: pulse 1s infinite;
+}
+
+.status-dot.alert {
+  background: var(--alert-red);
+  animation: pulse 0.5s infinite;
+}
+
+/* Map canvas styles */
+.map-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--c9-darker);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.map-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Death marker */
+.death-marker {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.death-marker.c9 {
+  background: var(--c9-blue);
+  box-shadow: 0 0 10px var(--c9-blue);
+}
+
+.death-marker.opp {
+  background: var(--alert-red);
+  box-shadow: 0 0 10px var(--alert-red);
+}
+
+/* Trade web line */
+.trade-line {
+  stroke-width: 2;
+  fill: none;
+}
+
+.trade-line.tradeable {
+  stroke: var(--success-green);
+  opacity: 0.7;
+}
+
+.trade-line.untradeable {
+  stroke: var(--alert-red);
+  opacity: 0.5;
+  stroke-dasharray: 5, 5;
+}
+
+/* Chart container */
+.chart-container {
+  position: relative;
+  height: 200px;
+  width: 100%;
+}
+
+/* Tilt zone highlight */
+.tilt-zone {
+  fill: rgba(255, 71, 87, 0.1);
+}
+
+/* Alert card */
+.alert-card {
+  background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), rgba(255, 71, 87, 0.05));
+  border: 2px solid var(--alert-red);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.alert-card.active {
+  animation: alertGlow 1.5s ease-in-out infinite;
+}
+
+/* Scoreboard */
+.scoreboard {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+  background: linear-gradient(135deg, var(--card-bg), var(--c9-darker));
+  border-radius: 16px;
+}
+
+.score-display {
+  font-size: 4rem;
+  font-weight: 800;
+  letter-spacing: 4px;
+  text-align: center;
+}
+
+/* Win probability gauge */
+.gauge-container {
+  position: relative;
+  width: 120px;
+  height: 60px;
+  overflow: hidden;
+}
+
+.gauge-arc {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.gauge-needle {
+  fill: var(--text-white);
+  transform-origin: center bottom;
+  transition: transform 0.5s ease-out;
+}
+
+/* Buttons */
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--c9-blue);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--c9-blue-dark);
+}
+
+.btn-primary:disabled {
+  background: #4a5568;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: var(--alert-red);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #e8404e;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--c9-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--card-bg-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-gray);
 }
