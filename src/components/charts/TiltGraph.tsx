@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -179,56 +180,136 @@ export function TiltGraph({ tradeTimeHistory, currentTilt, baseline = 6000 }: Ti
     ? ((latestTradeTime / actualBaseline - 1) * 100).toFixed(0)
     : '0';
 
-  const diagnosis = currentTilt?.diagnosis || 'neutral';
-  const diagnosisColors: Record<string, string> = {
-    tilt: 'text-[#ff4757]',
-    tactical: 'text-[#ffa502]',
-    enemy_strong: 'text-[#ff4757]',
-    locked_in: 'text-[#2ed573]',
-    neutral: 'text-[#a0aec0]',
+  const rawDiagnosis = currentTilt?.diagnosis || 'neutral';
+
+  const diagnosisConfig: Record<string, { color: string; bg: string; label: string; glow: string }> = {
+    tilt: {
+      color: 'text-[#ff4757]',
+      bg: 'bg-[#ff4757]/20',
+      label: 'TILT DETECTED',
+      glow: 'shadow-[0_0_30px_rgba(255,71,87,0.3)]'
+    },
+    tactical: {
+      color: 'text-[#ffa502]',
+      bg: 'bg-[#ffa502]/20',
+      label: 'TACTICAL (PASSIVE)',
+      glow: ''
+    },
+    enemy_strong: {
+      color: 'text-[#ff4757]',
+      bg: 'bg-[#ff4757]/20',
+      label: 'ENEMY DOMINANT',
+      glow: 'shadow-[0_0_30px_rgba(255,71,87,0.3)]'
+    },
+    locked_in: {
+      color: 'text-[#2ed573]',
+      bg: 'bg-[#2ed573]/20',
+      label: 'LOCKED IN',
+      glow: 'shadow-[0_0_20px_rgba(46,213,115,0.2)]'
+    },
+    neutral: {
+      color: 'text-[#a0aec0]',
+      bg: 'bg-white/5',
+      label: 'MONITORING...',
+      glow: ''
+    },
   };
 
-  const diagnosisLabels: Record<string, string> = {
-    tilt: 'TILT DETECTED',
-    tactical: 'TACTICAL (PASSIVE)',
-    enemy_strong: 'ENEMY STRONG',
-    locked_in: 'LOCKED IN',
-    neutral: 'MONITORING...',
-  };
+  // Fallback to neutral if diagnosis not in config
+  const diagnosis = rawDiagnosis in diagnosisConfig ? rawDiagnosis : 'neutral';
+  const config = diagnosisConfig[diagnosis];
+  const isTilting = diagnosis === 'tilt' || diagnosis === 'enemy_strong';
+  const isLockedIn = diagnosis === 'locked_in';
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="card-header mb-0">Trade Time Analysis</h3>
-        <div className="flex items-center gap-4">
-          <span className={`text-sm font-semibold ${diagnosisColors[diagnosis]}`}>
-            {diagnosisLabels[diagnosis]}
+    <motion.div
+      className={`glass-card p-6 relative overflow-hidden ${isTilting ? config.glow : ''}`}
+      animate={isTilting ? { borderColor: ['rgba(255,71,87,0.3)', 'rgba(255,71,87,0.6)', 'rgba(255,71,87,0.3)'] } : {}}
+      transition={{ duration: 2, repeat: Infinity }}
+    >
+      {/* Tilt warning background pulse */}
+      {isTilting && (
+        <motion.div
+          className="absolute inset-0 bg-[#ff4757]/5 pointer-events-none"
+          animate={{ opacity: [0, 0.5, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 relative">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-bold text-white">Trade Time Analysis</h3>
+          <span className="text-[10px] text-[#00a8e8] bg-[#00a8e8]/10 px-2 py-0.5 rounded-full font-medium">
+            KEY METRIC
           </span>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Diagnosis badge */}
+          <motion.span
+            className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} ${config.bg}`}
+            animate={isTilting ? { scale: [1, 1.05, 1] } : {}}
+            transition={{ duration: 1, repeat: Infinity }}
+          >
+            {config.label}
+          </motion.span>
+          {/* Degradation percentage */}
           {Number(degradation) > 0 && (
-            <span className="text-sm text-[#ff4757] font-mono">
+            <motion.span
+              className="text-xl font-bold text-[#ff4757] font-mono"
+              key={degradation}
+              initial={{ scale: 1.2, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+            >
               +{degradation}%
+            </motion.span>
+          )}
+          {Number(degradation) < 0 && (
+            <span className="text-xl font-bold text-[#2ed573] font-mono">
+              {degradation}%
             </span>
           )}
         </div>
       </div>
 
-      <div className="chart-container h-[200px]">
+      {/* Chart - Larger for hero status */}
+      <div className="chart-container h-[250px]">
         {tradeTimeHistory.length > 0 ? (
           <Line ref={chartRef} data={data} options={options} />
         ) : (
           <div className="flex items-center justify-center h-full text-[#a0aec0]">
-            <p>Waiting for trade time data...</p>
+            <div className="text-center">
+              <p className="text-lg mb-2">Waiting for trade time data...</p>
+              <p className="text-sm text-white/40">Trade time measures team coordination under pressure</p>
+            </div>
           </div>
         )}
       </div>
 
-      {currentTilt?.has_data && (
-        <div className="mt-4 pt-4 border-t border-white/10">
-          <p className="text-sm text-[#a0aec0]">
+      {/* Insight text */}
+      {currentTilt?.has_data && currentTilt.insight && (
+        <motion.div
+          className="mt-4 pt-4 border-t border-white/10"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <p className={`text-sm ${isTilting ? 'text-[#ff4757]/90' : 'text-[#a0aec0]'}`}>
             {currentTilt.insight}
           </p>
-        </div>
+        </motion.div>
       )}
-    </div>
+
+      {/* Bottom accent line for tilt state */}
+      {isTilting && (
+        <motion.div
+          className="absolute bottom-0 left-0 right-0 h-1 bg-[#ff4757]"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1, repeat: Infinity }}
+        />
+      )}
+      {isLockedIn && (
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#2ed573]" />
+      )}
+    </motion.div>
   );
 }

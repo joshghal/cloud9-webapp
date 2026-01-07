@@ -28,11 +28,14 @@ export interface MapBounds {
 export interface TiltData {
   has_data: boolean;
   tilt_index: number;
-  diagnosis: 'tilt' | 'tactical' | 'enemy_strong' | 'locked_in' | 'neutral';
+  diagnosis: 'tilt' | 'tactical' | 'enemy_strong' | 'locked_in' | 'stable' | 'no_data';
   insight: string;
-  trade_time_current: number;
+  trade_time_current: number | null;
   trade_time_baseline: number;
-  degradation_percent: number;
+  trade_time_avg: number | null;
+  trade_success_rate: number | null;
+  early_trade_rate: number | null;
+  recent_win_rate: number | null;
 }
 
 export interface DuelLost {
@@ -103,6 +106,15 @@ export interface SpatialTimeline {
   };
 }
 
+export interface MapInfo {
+  name: string;
+  bounds: MapBounds | null;
+  width: number;
+  height: number;
+  aspect_ratio: number;
+  diagonal: number;
+}
+
 export interface RoundUpdate {
   round: number;
   c9_score: number;
@@ -114,7 +126,7 @@ export interface RoundUpdate {
   momentum_trend: 'improving' | 'declining' | 'stable';
   warning_level: 'none' | 'caution' | 'warning' | 'critical';
   tilt: TiltData;
-  map: string;
+  map: MapInfo;
   position_warning?: {
     message: string;
     confidence: number;

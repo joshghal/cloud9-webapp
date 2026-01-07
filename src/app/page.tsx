@@ -4,8 +4,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { useSocket } from '@/hooks/useSocket';
 import { Scoreboard } from '@/components/panels/Scoreboard';
 import { TiltGraph } from '@/components/charts/TiltGraph';
-import { TimeoutAlert } from '@/components/alerts/TimeoutAlert';
+import { PanicUtilityTracker } from '@/components/charts/PanicUtilityTracker';
+import { FullScreenTimeoutAlert } from '@/components/alerts/FullScreenTimeoutAlert';
 import { MapCanvas } from '@/components/map/MapCanvas';
+import { MomentumMeter } from '@/components/panels/MomentumMeter';
+import { PlayerTiltCards } from '@/components/panels/PlayerTiltCards';
+import { CollapseCascade } from '@/components/panels/CollapseCascade';
+import { GameReviewSummary } from '@/components/panels/GameReviewSummary';
 import type { TimeoutAlert as TimeoutAlertType } from '@/types';
 
 export default function Home() {
@@ -17,10 +22,15 @@ export default function Home() {
     currentMatch,
     roundData,
     alerts,
+    killFeed,
     tradeTimeHistory,
+    winProbabilityHistory,
+    panicUtilityEvents,
+    seriesData,
     roundDeaths,
     playerPositions,
     mapBounds,
+    ghostTeammates,
     replayComplete,
     startReplay,
     stopReplay,
@@ -32,6 +42,7 @@ export default function Home() {
   const [speed, setSpeed] = useState(10);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [activeAlert, setActiveAlert] = useState<TimeoutAlertType | null>(null);
+  const [showCalibration, setShowCalibration] = useState(false);
 
   // Fetch matches on mount
   useEffect(() => {
@@ -50,6 +61,39 @@ export default function Home() {
       startReplay(selectedMatch, speed, aiEnabled);
     }
   };
+
+  // Filter ghost teammates to only show current round
+  const currentRound = roundData?.round || 0;
+  const currentRoundGhosts = useMemo(() => {
+    return ghostTeammates.filter(g => g.round === currentRound);
+  }, [ghostTeammates, currentRound]);
+
+  // Calculate trade time increase percentage
+  const tradeTimeIncrease = useMemo(() => {
+    const tilt = roundData?.tilt;
+    if (!tilt?.trade_time_current || !tilt?.trade_time_baseline || tilt.trade_time_baseline === 0) {
+      return 0;
+    }
+    return Math.round((tilt.trade_time_current / tilt.trade_time_baseline - 1) * 100);
+  }, [roundData?.tilt]);
+
+  // Get previous probability for momentum shift animation
+  const previousProbability = useMemo(() => {
+    if (winProbabilityHistory.length < 2) return 50;
+    return winProbabilityHistory[winProbabilityHistory.length - 2]?.probability || 50;
+  }, [winProbabilityHistory]);
+
+  // Get player warnings from active alert or generate from round data
+  const currentPlayerWarnings = useMemo(() => {
+    if (activeAlert?.player_warnings && activeAlert.player_warnings.length > 0) {
+      return activeAlert.player_warnings;
+    }
+    const warnings: string[] = [];
+    if (roundData?.damage_efficiency?.worst_player && roundData.damage_efficiency.duels_lost !== undefined) {
+      warnings.push(`${roundData.damage_efficiency.worst_player}: ${roundData.damage_efficiency.duels_lost} duels lost`);
+    }
+    return warnings;
+  }, [activeAlert, roundData]);
 
   return (
     <div className="min-h-screen bg-[var(--c9-dark)]">
@@ -139,6 +183,18 @@ export default function Home() {
                 </label>
               </div>
 
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm text-[#a0aec0]">
+                  <input
+                    type="checkbox"
+                    checked={showCalibration}
+                    onChange={(e) => setShowCalibration(e.target.checked)}
+                    className="rounded"
+                  />
+                  Show Calibration Points
+                </label>
+              </div>
+
               {isRunning ? (
                 <button onClick={stopReplay} className="btn btn-danger w-full">
                   Stop Replay
@@ -158,8 +214,22 @@ export default function Home() {
             <div className="card">
               <h2 className="card-header">Live Activity</h2>
               <div className="space-y-1 max-h-[200px] overflow-y-auto text-sm">
-                {!isRunning && (
+                {!isRunning ? (
                   <p className="text-[#a0aec0]">Select a match to start</p>
+                ) : killFeed.length === 0 ? (
+                  <p className="text-[#a0aec0]">Waiting for kills...</p>
+                ) : (
+                  killFeed.slice(-15).reverse().map((kill, i) => (
+                    <div
+                      key={`${kill.round}-${kill.killer}-${kill.victim}-${i}`}
+                      className="flex items-center gap-2 py-1 border-b border-white/5 last:border-0"
+                    >
+                      <span className="text-[10px] text-white/30 w-6">R{kill.round}</span>
+                      <span className="text-white/80 truncate">{kill.killer}</span>
+                      <span className="text-[#ff4757]">→</span>
+                      <span className="text-white/60 truncate">{kill.victim}</span>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -177,81 +247,123 @@ export default function Home() {
               momentum={roundData?.momentum || 'Even'}
               momentumTrend={roundData?.momentum_trend || 'stable'}
               warningLevel={roundData?.warning_level || 'none'}
-              mapName={roundData?.map}
+              mapName={roundData?.map?.name || ''}
             />
 
-            {/* Alert Area */}
-            <TimeoutAlert
-              alert={activeAlert}
-              onDismiss={() => setActiveAlert(null)}
+            {/* Dramatic Momentum Display - THE BIG NUMBER */}
+            <MomentumMeter
+              winProbability={roundData?.win_probability || 50}
+              previousProbability={previousProbability}
+              momentum={roundData?.momentum || 'Even'}
+              momentumTrend={roundData?.momentum_trend || 'stable'}
+              tradeTimeIncrease={tradeTimeIncrease}
+              consecutiveLosses={roundData?.consecutive_losses || 0}
+              round={roundData?.round || 0}
+            />
+
+            {/* TiltGraph - THE HERO / MONEY SHOT - Full Width */}
+            <TiltGraph
+              tradeTimeHistory={tradeTimeHistory}
+              currentTilt={roundData?.tilt || null}
+            />
+
+            {/* Player Tilt Cards - Show struggling players */}
+            {currentPlayerWarnings.length > 0 && (
+              <PlayerTiltCards
+                warnings={currentPlayerWarnings}
+                panicUtilityCount={panicUtilityEvents.filter(e => e.round === currentRound).length}
+                tradeTimeIncrease={tradeTimeIncrease}
+              />
+            )}
+
+            {/* Collapse Cascade - Component handles its own visibility */}
+            <CollapseCascade
+              currentRound={currentRound}
+              consecutiveLosses={roundData?.consecutive_losses || 0}
+              tradeTimeIncrease={tradeTimeIncrease}
+              winProbability={roundData?.win_probability || 50}
+              tiltDiagnosis={roundData?.tilt?.diagnosis}
+              untradeableCount={currentRoundGhosts.length}
+              panicUtilityCount={panicUtilityEvents.filter(e => e.round === currentRound).length}
             />
 
             {/* Visualization Grid */}
             <div className="grid grid-cols-2 gap-6">
-              {/* Tilt Graph - THE MONEY SHOT */}
-              <div className="col-span-2">
-                <TiltGraph
-                  tradeTimeHistory={tradeTimeHistory}
-                  currentTilt={roundData?.tilt || null}
-                />
-              </div>
-
               {/* Map Visualization - Deaths */}
               <div className="card">
-                <h3 className="card-header">Round Deaths</h3>
+                <h3 className="card-header flex items-center gap-2">
+                  Round Deaths
+                  {currentRoundGhosts.length > 0 && (
+                    <span className="text-[10px] bg-[#ffa502]/20 text-[#ffa502] px-1.5 py-0.5 rounded">
+                      {currentRoundGhosts.length} untradeable
+                    </span>
+                  )}
+                </h3>
                 <MapCanvas
-                  mapName={roundData?.map || 'Unknown'}
+                  mapName={roundData?.map?.name || 'Unknown'}
                   deaths={roundDeaths}
-                  bounds={mapBounds || undefined}
+                  ghostTeammates={currentRoundGhosts}
+                  bounds={roundData?.map?.bounds || mapBounds || undefined}
+                  showReferencePoints={showCalibration}
                 />
               </div>
 
-              {/* Trade Web - Player Positions */}
+              {/* Proximity Web - Player Positions */}
               <div className="card">
-                <h3 className="card-header">Trade Web</h3>
+                <h3 className="card-header flex items-center gap-2">
+                  Proximity Web
+                  <span
+                    className="text-[10px] text-[#a0aec0] cursor-help"
+                    title="Shows player distances. Green = close, Red = far. Note: Does not account for walls/obstacles."
+                  >
+                    [?]
+                  </span>
+                </h3>
                 <MapCanvas
-                  mapName={roundData?.map || 'Unknown'}
+                  mapName={roundData?.map?.name || 'Unknown'}
                   deaths={[]}
-                  playerPositions={Object.entries(playerPositions).map(([name, pos]) => ({
+                  playerPositions={Object.entries(playerPositions).map(([name, data]) => ({
                     name,
-                    x: pos[0],
-                    y: pos[1],
-                    team: 'c9' as const, // TODO: Track team from backend
+                    x: data.pos[0],
+                    y: data.pos[1],
+                    team: data.team,
                   }))}
                   showTradeWeb={true}
-                  tradeableThreshold={2000}
-                  bounds={mapBounds || undefined}
+                  tradeableThreshold={roundData?.map?.diagonal ? roundData.map.diagonal * 0.15 : 2500}
+                  bounds={roundData?.map?.bounds || mapBounds || undefined}
+                  showReferencePoints={showCalibration}
                 />
               </div>
+
             </div>
 
-            {/* Replay Complete Summary */}
+            {/* Panic Utility Tracker - Full Width */}
+            <PanicUtilityTracker
+              events={panicUtilityEvents}
+              currentRound={roundData?.round || 0}
+            />
+
+            {/* Post-Game Analysis - Comprehensive Series Review */}
             {replayComplete && (
-              <div className="card">
-                <h3 className="card-header">Match Summary</h3>
-                <div className="grid grid-cols-4 gap-4 text-center">
-                  <div>
-                    <p className="text-3xl font-bold text-white">{replayComplete.final_score}</p>
-                    <p className="text-sm text-[#a0aec0]">Final Score</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-white">{replayComplete.total_rounds}</p>
-                    <p className="text-sm text-[#a0aec0]">Rounds</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-[#ff4757]">{replayComplete.alerts_generated}</p>
-                    <p className="text-sm text-[#a0aec0]">Alerts</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-[#00a8e8]">{replayComplete.actual_timeouts}</p>
-                    <p className="text-sm text-[#a0aec0]">Timeouts Called</p>
-                  </div>
-                </div>
-              </div>
+              <GameReviewSummary
+                replayComplete={replayComplete}
+                alerts={alerts}
+                panicUtilityEvents={panicUtilityEvents}
+                tradeTimeHistory={tradeTimeHistory}
+                seriesData={seriesData}
+              />
             )}
           </div>
         </div>
       </main>
+
+      {/* Full-screen Timeout Alert - Takes over screen when triggered */}
+      <FullScreenTimeoutAlert
+        alert={activeAlert}
+        onDismiss={() => setActiveAlert(null)}
+        winProbability={roundData?.win_probability || 50}
+        tradeTimeIncrease={tradeTimeIncrease}
+      />
     </div>
   );
 }
