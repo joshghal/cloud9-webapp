@@ -2,6 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  OPTIMAL_TRADE_DISTANCE,
+  MAX_TRADEABLE_DISTANCE,
+  POSITION_SCALE_FACTOR,
+  TRADE_RATE_GOOD,
+  TRADE_RATE_WARNING,
+  UNTRADEABLE_WARNING,
+  getDistanceColor,
+  getTradeRateColor,
+} from '@/lib/thresholds';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -15,6 +25,8 @@ interface GhostSnapshot {
   timestamp_ms: number;
   dead_player: string;
   death_position: GhostPosition;
+  killer?: string;
+  killer_position?: GhostPosition;
   teammates: {
     name: string;
     actual_position: GhostPosition;
@@ -22,19 +34,31 @@ interface GhostSnapshot {
     distance_to_dead: number;
     was_tradeable: boolean;
     improvement_needed: number;
+    estimated_trade_time_ms?: number;
+    has_line_of_sight?: boolean;
   }[];
   trade_window_expired: boolean;
+  was_actually_traded?: boolean;
+  trade_time_ms?: number;
   nearest_teammate_distance: number;
 }
 
 interface GhostTimelineResponse {
   success: boolean;
   total_snapshots: number;
+  traded_count?: number;
   snapshots: GhostSnapshot[];
   summary: {
     avg_nearest_distance: number;
     untradeable_percentage: number;
     worst_positioning_player: string;
+    trade_rate?: number;
+  };
+  thresholds?: {
+    optimal_trade_distance: number;
+    max_tradeable_distance: number;
+    trade_window_ms: number;
+    unit_explanation: string;
   };
 }
 
@@ -105,11 +129,7 @@ export default function GhostTimeline({ matchFile, onSnapshotSelect }: GhostTime
     onSnapshotSelect?.(snapshot);
   };
 
-  const getDistanceColor = (distance: number) => {
-    if (distance <= 1200) return 'text-green-400';
-    if (distance <= 2000) return 'text-[#ffa502]';
-    return 'text-[#ff4757]';
-  };
+  // Using imported getDistanceColor from @/lib/thresholds
 
   return (
     <div className="flex flex-col h-full bg-black/40 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden">
@@ -141,26 +161,32 @@ export default function GhostTimeline({ matchFile, onSnapshotSelect }: GhostTime
       {/* Summary Stats */}
       {data?.summary && (
         <div className="px-4 py-3 border-b border-white/10 bg-white/5">
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-4 gap-3 text-center">
             <div>
-              <div className={`text-xl font-bold ${getDistanceColor(data?.summary.avg_nearest_distance)}`}>
-                {Math.round(data?.summary.avg_nearest_distance)}
+              <div className={`text-lg font-bold ${getTradeRateColor(data?.summary.trade_rate || 0)}`}>
+                {data?.summary.trade_rate?.toFixed(0) || 0}%
+              </div>
+              <div className="text-xs text-white/50">Trade Rate</div>
+            </div>
+            <div>
+              <div className={`text-lg font-bold ${getDistanceColor(data?.summary.avg_nearest_distance)}`}>
+                {Math.round(data?.summary.avg_nearest_distance)}u
               </div>
               <div className="text-xs text-white/50">Avg Distance</div>
             </div>
             <div>
-              <div className={`text-xl font-bold ${
-                data?.summary.untradeable_percentage > 50 ? 'text-[#ff4757]' : 'text-white'
+              <div className={`text-lg font-bold ${
+                data?.summary.untradeable_percentage > UNTRADEABLE_WARNING ? 'text-[#ff4757]' : 'text-white'
               }`}>
                 {data?.summary.untradeable_percentage.toFixed(0)}%
               </div>
-              <div className="text-xs text-white/50">Untradeable</div>
+              <div className="text-xs text-white/50">Not Traded</div>
             </div>
             <div>
-              <div className="text-xl font-bold text-[#ffa502]">
+              <div className="text-lg font-bold text-[#ffa502] truncate" title={data?.summary.worst_positioning_player}>
                 {data?.summary.worst_positioning_player}
               </div>
-              <div className="text-xs text-white/50">Needs Work</div>
+              <div className="text-xs text-white/50">Worst Pos.</div>
             </div>
           </div>
         </div>
@@ -195,16 +221,21 @@ export default function GhostTimeline({ matchFile, onSnapshotSelect }: GhostTime
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-white">R{snapshot.round}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      snapshot.trade_window_expired
-                        ? 'bg-[#ff4757]/20 text-[#ff4757]'
-                        : 'bg-green-500/20 text-green-400'
+                      snapshot.was_actually_traded
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-[#ff4757]/20 text-[#ff4757]'
                     }`}>
-                      {snapshot.trade_window_expired ? 'EXPIRED' : 'TRADEABLE'}
+                      {snapshot.was_actually_traded ? 'TRADED' : 'NOT TRADED'}
                     </span>
                   </div>
                   <div className="text-xs text-white/60 mt-1">{snapshot.dead_player}</div>
                   <div className="text-xs text-white/40">
                     Nearest: {Math.round(snapshot.nearest_teammate_distance)}u
+                    {snapshot.was_actually_traded && snapshot.trade_time_ms && (
+                      <span className="text-green-400/70 ml-1">
+                        ({(snapshot.trade_time_ms / 1000).toFixed(1)}s)
+                      </span>
+                    )}
                   </div>
                 </button>
               ))}
@@ -224,7 +255,11 @@ export default function GhostTimeline({ matchFile, onSnapshotSelect }: GhostTime
                 className="space-y-4"
               >
                 {/* Death Info */}
-                <div className="p-4 rounded-lg bg-[#ff4757]/10 border border-[#ff4757]/30">
+                <div className={`p-4 rounded-lg border ${
+                  selectedSnapshot.was_actually_traded
+                    ? 'bg-green-500/10 border-green-500/30'
+                    : 'bg-[#ff4757]/10 border-[#ff4757]/30'
+                }`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-lg font-bold text-white">{selectedSnapshot.dead_player}</span>
                     <span className="text-sm text-white/50">Round {selectedSnapshot.round}</span>
@@ -232,12 +267,17 @@ export default function GhostTimeline({ matchFile, onSnapshotSelect }: GhostTime
                   <div className="text-sm text-white/60">
                     Death Position: ({Math.round(selectedSnapshot.death_position.x)}, {Math.round(selectedSnapshot.death_position.y)})
                   </div>
-                  <div className={`text-sm mt-1 ${
-                    selectedSnapshot.trade_window_expired ? 'text-[#ff4757]' : 'text-green-400'
+                  {selectedSnapshot.killer && (
+                    <div className="text-sm text-white/60 mt-1">
+                      Killed by: <span className="text-[#ffa502]">{selectedSnapshot.killer}</span>
+                    </div>
+                  )}
+                  <div className={`text-sm mt-2 font-medium ${
+                    selectedSnapshot.was_actually_traded ? 'text-green-400' : 'text-[#ff4757]'
                   }`}>
-                    {selectedSnapshot.trade_window_expired
-                      ? 'Trade window expired - no teammate close enough'
-                      : 'Trade was possible'}
+                    {selectedSnapshot.was_actually_traded
+                      ? `✓ Death was traded${selectedSnapshot.trade_time_ms ? ` in ${(selectedSnapshot.trade_time_ms / 1000).toFixed(1)}s` : ''}`
+                      : '✗ Death was NOT traded - teammates too far or too slow'}
                   </div>
                 </div>
 
@@ -296,11 +336,50 @@ export default function GhostTimeline({ matchFile, onSnapshotSelect }: GhostTime
 
                 {/* Visual Position Indicator */}
                 <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                  <h4 className="text-sm font-medium text-white/70 mb-3">Position Overview</h4>
-                  <div className="relative h-40 bg-black/30 rounded-lg overflow-hidden">
+                  <h4 className="text-sm font-medium text-white/70 mb-1">Position Overview</h4>
+                  <p className="text-[10px] text-white/40 mb-3">
+                    {data?.thresholds?.unit_explanation || `Units (u) are game units. ~${OPTIMAL_TRADE_DISTANCE}u = optimal trade distance.`}
+                  </p>
+                  <div className="relative h-48 bg-black/30 rounded-lg overflow-hidden">
+                    {/* Optimal trade radius */}
+                    <div
+                      className="absolute border-2 border-dashed border-green-500/40 rounded-full transform -translate-x-1/2 -translate-y-1/2"
+                      style={{
+                        left: '50%',
+                        top: '50%',
+                        width: `${Math.round(OPTIMAL_TRADE_DISTANCE * POSITION_SCALE_FACTOR)}px`,
+                        height: `${Math.round(OPTIMAL_TRADE_DISTANCE * POSITION_SCALE_FACTOR)}px`,
+                      }}
+                      title={`Optimal trade distance (${OPTIMAL_TRADE_DISTANCE}u)`}
+                    />
+
+                    {/* Max tradeable radius */}
+                    <div
+                      className="absolute border border-dashed border-[#ffa502]/30 rounded-full transform -translate-x-1/2 -translate-y-1/2"
+                      style={{
+                        left: '50%',
+                        top: '50%',
+                        width: `${Math.round(MAX_TRADEABLE_DISTANCE * POSITION_SCALE_FACTOR)}px`,
+                        height: `${Math.round(MAX_TRADEABLE_DISTANCE * POSITION_SCALE_FACTOR)}px`,
+                      }}
+                      title={`Max tradeable distance (${MAX_TRADEABLE_DISTANCE}u)`}
+                    />
+
+                    {/* Killer marker */}
+                    {selectedSnapshot.killer_position && (
+                      <div
+                        className="absolute w-3 h-3 bg-purple-500 rounded transform -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: `${50 + (selectedSnapshot.killer_position.x - selectedSnapshot.death_position.x) * 0.05}%`,
+                          top: `${50 + (selectedSnapshot.killer_position.y - selectedSnapshot.death_position.y) * 0.05}%`,
+                        }}
+                        title={`Killer: ${selectedSnapshot.killer}`}
+                      />
+                    )}
+
                     {/* Dead player marker */}
                     <div
-                      className="absolute w-3 h-3 bg-[#ff4757] rounded-full transform -translate-x-1/2 -translate-y-1/2"
+                      className="absolute w-4 h-4 bg-[#ff4757] rounded-full transform -translate-x-1/2 -translate-y-1/2 ring-2 ring-[#ff4757]/50"
                       style={{
                         left: '50%',
                         top: '50%',
@@ -309,61 +388,84 @@ export default function GhostTimeline({ matchFile, onSnapshotSelect }: GhostTime
                     />
 
                     {/* Teammate markers */}
-                    {selectedSnapshot.teammates.map((teammate, i) => {
+                    {selectedSnapshot.teammates.map((teammate) => {
                       const dx = teammate.actual_position.x - selectedSnapshot.death_position.x;
                       const dy = teammate.actual_position.y - selectedSnapshot.death_position.y;
-                      const scale = 0.05;
+                      const leftPos = 50 + dx * POSITION_SCALE_FACTOR;
+                      const topPos = 50 + dy * POSITION_SCALE_FACTOR;
+
+                      // Clamp positions to stay within bounds
+                      const clampedLeft = Math.max(5, Math.min(95, leftPos));
+                      const clampedTop = Math.max(5, Math.min(95, topPos));
+
                       return (
                         <div key={teammate.name}>
+                          {/* Line from death to teammate */}
+                          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                            <line
+                              x1="50%"
+                              y1="50%"
+                              x2={`${clampedLeft}%`}
+                              y2={`${clampedTop}%`}
+                              stroke={teammate.was_tradeable ? '#22c55e' : '#ffa502'}
+                              strokeWidth="1"
+                              strokeOpacity="0.3"
+                              strokeDasharray="4,4"
+                            />
+                          </svg>
                           {/* Actual position */}
                           <div
-                            className={`absolute w-2.5 h-2.5 rounded-full transform -translate-x-1/2 -translate-y-1/2 ${
-                              teammate.was_tradeable ? 'bg-green-400' : 'bg-[#ffa502]'
+                            className={`absolute w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-[8px] font-bold ${
+                              teammate.was_tradeable ? 'bg-green-400 text-green-900' : 'bg-[#ffa502] text-orange-900'
                             }`}
                             style={{
-                              left: `${50 + dx * scale}%`,
-                              top: `${50 + dy * scale}%`,
+                              left: `${clampedLeft}%`,
+                              top: `${clampedTop}%`,
                             }}
-                            title={`${teammate.name} (actual)`}
-                          />
+                            title={`${teammate.name}: ${teammate.distance_to_dead}u (${teammate.was_tradeable ? 'tradeable' : 'too far'})`}
+                          >
+                            {teammate.name.charAt(0)}
+                          </div>
                           {/* Recommended position */}
                           <div
-                            className="absolute w-2 h-2 border-2 border-[#00a8e8] rounded-full transform -translate-x-1/2 -translate-y-1/2 opacity-50"
+                            className="absolute w-2 h-2 border-2 border-[#00a8e8] rounded-full transform -translate-x-1/2 -translate-y-1/2 opacity-60"
                             style={{
-                              left: `${50 + (teammate.recommended_position.x - selectedSnapshot.death_position.x) * scale}%`,
-                              top: `${50 + (teammate.recommended_position.y - selectedSnapshot.death_position.y) * scale}%`,
+                              left: `${Math.max(5, Math.min(95, 50 + (teammate.recommended_position.x - selectedSnapshot.death_position.x) * POSITION_SCALE_FACTOR))}%`,
+                              top: `${Math.max(5, Math.min(95, 50 + (teammate.recommended_position.y - selectedSnapshot.death_position.y) * POSITION_SCALE_FACTOR))}%`,
                             }}
-                            title={`${teammate.name} (recommended)`}
+                            title={`${teammate.name} recommended position`}
                           />
                         </div>
                       );
                     })}
 
-                    {/* Trade radius indicator */}
-                    <div
-                      className="absolute border border-dashed border-green-500/30 rounded-full transform -translate-x-1/2 -translate-y-1/2"
-                      style={{
-                        left: '50%',
-                        top: '50%',
-                        width: '60px',
-                        height: '60px',
-                      }}
-                    />
-
                     {/* Legend */}
-                    <div className="absolute bottom-2 left-2 text-[10px] text-white/40 space-y-0.5">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-[#ff4757] rounded-full" />
+                    <div className="absolute bottom-2 left-2 text-[9px] text-white/50 space-y-0.5 bg-black/50 p-1.5 rounded">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 bg-[#ff4757] rounded-full" />
                         <span>Death</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-green-400 rounded-full" />
-                        <span>Tradeable</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 bg-purple-500 rounded" />
+                        <span>Killer</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 border border-[#00a8e8] rounded-full" />
-                        <span>Recommended</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 bg-green-400 rounded-full" />
+                        <span>In range</span>
                       </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 bg-[#ffa502] rounded-full" />
+                        <span>Too far</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 border border-dashed border-green-500/60 rounded-full" />
+                        <span>{OPTIMAL_TRADE_DISTANCE}u optimal</span>
+                      </div>
+                    </div>
+
+                    {/* Distance scale */}
+                    <div className="absolute top-2 right-2 text-[9px] text-white/40 bg-black/50 p-1.5 rounded">
+                      <div>Scale: 1px ≈ {Math.round(1 / POSITION_SCALE_FACTOR)}u</div>
                     </div>
                   </div>
                 </div>

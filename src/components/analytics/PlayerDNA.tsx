@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { getRatingColor } from '@/lib/thresholds';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -41,6 +42,7 @@ interface PlayerDNAData {
 interface PlayerDNAResponse {
   success: boolean;
   dna: PlayerDNAData;
+  match_players?: string[];
   error?: string;
 }
 
@@ -50,13 +52,15 @@ interface PlayerDNAProps {
   onPlayerChange?: (player: string) => void;
 }
 
-const PLAYERS = ['OXY', 'Xeppaa', 'neT', 'mCe', 'jakee'];
+// Default roster - will be replaced by match-specific players from API
+const DEFAULT_PLAYERS = ['OXY', 'v1c', 'Xeppaa', 'neT', 'mitch'];
 
 export default function PlayerDNA({ matchFile, playerName, onPlayerChange }: PlayerDNAProps) {
   const [data, setData] = useState<PlayerDNAData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPlayer, setSelectedPlayer] = useState(playerName || PLAYERS[0]);
+  const [matchPlayers, setMatchPlayers] = useState<string[]>(DEFAULT_PLAYERS);
+  const [selectedPlayer, setSelectedPlayer] = useState(playerName || DEFAULT_PLAYERS[0]);
 
   useEffect(() => {
     if (!matchFile || !selectedPlayer) return;
@@ -84,6 +88,10 @@ export default function PlayerDNA({ matchFile, playerName, onPlayerChange }: Pla
 
         if (result.success) {
           setData(result.dna);
+          // Update player list from match data
+          if (result.match_players && result.match_players.length > 0) {
+            setMatchPlayers(result.match_players);
+          }
         } else {
           setError(result.error || 'Failed to generate player DNA');
         }
@@ -136,12 +144,7 @@ export default function PlayerDNA({ matchFile, playerName, onPlayerChange }: Pla
     }
   };
 
-  const getRatingColor = (rating: number) => {
-    if (rating >= 1.2) return 'text-green-400';
-    if (rating >= 1.0) return 'text-white';
-    if (rating >= 0.8) return 'text-[#ffa502]';
-    return 'text-[#ff4757]';
-  };
+  // Using imported getRatingColor from @/lib/thresholds
 
   return (
     <div className="flex flex-col h-full bg-black/40 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden">
@@ -157,7 +160,7 @@ export default function PlayerDNA({ matchFile, playerName, onPlayerChange }: Pla
 
         {/* Player Selector */}
         <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
-          {PLAYERS.map(player => (
+          {matchPlayers.map(player => (
             <button
               key={player}
               onClick={() => handlePlayerChange(player)}
