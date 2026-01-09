@@ -32,7 +32,8 @@ interface PositionUpdate {
   map_bounds: MapBounds;
 }
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || API_BASE;
 
 interface WinProbabilityEntry {
   round: number;
@@ -85,12 +86,6 @@ interface SeriesData {
   allAlerts: TimeoutAlert[];
   allPanicEvents: PanicUtilityEvent[];
   allTradeTimeHistory: { gameNumber: number; mapName: string; entries: TradeTimeEntry[] }[];
-}
-
-interface TradeTimeEntry {
-  round: number;
-  trade_time_ms: number;
-  traded: boolean;
 }
 
 interface UseSocketReturn {
@@ -207,17 +202,17 @@ export function useSocket(): UseSocketReturn {
     });
 
     socket.on('error', (data: { message: string }) => {
-      setError(data.message);
+      setError(data?.message);
     });
 
     socket.on('status', (data: { message: string }) => {
-      console.log('Status:', data.message);
+      console.log('Status:', data?.message);
     });
 
     // Replay events
     socket.on('replay_started', (data: { match: string; speed: number }) => {
       setIsRunning(true);
-      setCurrentMatch(data.match);
+      setCurrentMatch(data?.match);
       setAlerts([]);
       setKillFeed([]);
       setTradeTimeHistory([]);
@@ -241,7 +236,7 @@ export function useSocket(): UseSocketReturn {
         allTradeTimeHistory: [],
       });
       currentGameRef.current = { gameNumber: 1, mapName: '' };
-      console.log(`Replay started: ${data.match} at ${data.speed}x`);
+      console.log(`Replay started: ${data?.match} at ${data?.speed}x`);
     });
 
     socket.on('replay_stopped', () => {
@@ -260,7 +255,7 @@ export function useSocket(): UseSocketReturn {
     socket.on('replay_complete', (data: ReplayComplete) => {
       setIsRunning(false);
       setReplayComplete(data);
-      console.log('Replay complete:', data.final_score);
+      console.log('Replay complete:', data?.final_score);
     });
 
     // Live data events
@@ -268,39 +263,39 @@ export function useSocket(): UseSocketReturn {
       setRoundData(data);
 
       // Clear ghost teammates and round deaths when round changes
-      if (data.round !== lastRoundRef.current) {
-        lastRoundRef.current = data.round;
+      if (data?.round !== lastRoundRef.current) {
+        lastRoundRef.current = data?.round;
         setGhostTeammates([]);
         setRoundDeaths([]);
       }
 
       // Update map bounds from round data if available
-      if (data.map?.bounds) {
-        setMapBounds(data.map.bounds);
+      if (data?.map?.bounds) {
+        setMapBounds(data?.map.bounds);
       }
 
       // Track win probability history
       setWinProbabilityHistory(prev => {
         // Avoid duplicates
-        const exists = prev.some(p => p.round === data.round);
+        const exists = prev.some(p => p.round === data?.round);
         if (exists) return prev;
         return [...prev, {
-          round: data.round,
-          probability: data.win_probability,
-          c9Score: data.c9_score,
-          oppScore: data.opp_score,
+          round: data?.round,
+          probability: data?.win_probability,
+          c9Score: data?.c9_score,
+          oppScore: data?.opp_score,
         }];
       });
 
       // Track trade time history for tilt graph
-      if (data.tilt?.has_data && data.tilt.trade_time_current != null && data.tilt.trade_time_current > 0) {
-        const tradeTime = data.tilt.trade_time_current;
+      if (data?.tilt?.has_data && data?.tilt.trade_time_current != null && data?.tilt.trade_time_current > 0) {
+        const tradeTime = data?.tilt.trade_time_current;
         setTradeTimeHistory(prev => {
           // Avoid duplicates
-          const exists = prev.some(t => t.round === data.round);
+          const exists = prev.some(t => t.round === data?.round);
           if (exists) return prev;
           return [...prev, {
-            round: data.round,
+            round: data?.round,
             trade_time_ms: tradeTime,
             traded: tradeTime < 5000
           }];
@@ -325,7 +320,7 @@ export function useSocket(): UseSocketReturn {
       timestamp: string;
     }) => {
       // Only track C9 abilities for panic utility detection
-      if (data.team === 'c9') {
+      if (data?.team === 'c9') {
         recentAbilities.current.push(data);
         // Keep only last 50 abilities to prevent memory bloat
         if (recentAbilities.current.length > 50) {
@@ -351,18 +346,18 @@ export function useSocket(): UseSocketReturn {
       setDeaths(prev => [...prev, death]);
       // Only add to roundDeaths if same round, and filter out any stale deaths
       setRoundDeaths(prev => {
-        const currentRoundDeaths = prev.filter(d => d.round === data.round);
+        const currentRoundDeaths = prev.filter(d => d.round === data?.round);
         return [...currentRoundDeaths, death];
       });
 
       // Check for panic utility: C9 player used ability within 2 seconds of dying
-      if (data.team === 'c9') {
-        const deathTime = data.timestamp ? new Date(data.timestamp).getTime() : Date.now();
+      if (data?.team === 'c9') {
+        const deathTime = data?.timestamp ? new Date(data?.timestamp).getTime() : Date.now();
         const panicThreshold = 2000; // 2 seconds
 
         // Find abilities used by this player in the last 2 seconds
         const panicAbilities = recentAbilities.current.filter(ability => {
-          if (ability.player !== data.player) return false;
+          if (ability.player !== data?.player) return false;
           const abilityTime = new Date(ability.timestamp).getTime();
           const timeDiff = deathTime - abilityTime;
           return timeDiff >= 0 && timeDiff <= panicThreshold;
@@ -374,9 +369,9 @@ export function useSocket(): UseSocketReturn {
           const timeToDeath = deathTime - abilityTime;
 
           setPanicUtilityEvents(prev => [...prev, {
-            player: data.player,
+            player: data?.player,
             ability: ability.ability,
-            round: data.round,
+            round: data?.round,
             timeToDeath
           }]);
         });
@@ -391,7 +386,7 @@ export function useSocket(): UseSocketReturn {
 
         const positions = playerPositionsRef.current;
         const c9Teammates = Object.entries(positions)
-          .filter(([name, posData]) => posData.team === 'c9' && name !== data.player);
+          .filter(([name, posData]) => posData.team === 'c9' && name !== data?.player);
 
         if (c9Teammates.length > 0) {
           const TRADE_THRESHOLD = 2000; // units for trade distance
@@ -399,8 +394,8 @@ export function useSocket(): UseSocketReturn {
           // Find nearest teammate using reduce
           const nearestTeammate = c9Teammates.reduce<{ name: string; pos: [number, number]; distance: number } | null>(
             (nearest, [name, posData]) => {
-              const dx = posData.pos[0] - data.x;
-              const dy = posData.pos[1] - data.y;
+              const dx = posData.pos[0] - data?.x;
+              const dy = posData.pos[1] - data?.y;
               const distance = Math.sqrt(dx * dx + dy * dy);
 
               if (!nearest || distance < nearest.distance) {
@@ -414,26 +409,26 @@ export function useSocket(): UseSocketReturn {
           // If nearest teammate was too far, create ghost position
           if (nearestTeammate && nearestTeammate.distance > TRADE_THRESHOLD) {
             // Calculate ghost position: along vector from death to teammate, at TRADE_THRESHOLD distance
-            const dx = nearestTeammate.pos[0] - data.x;
-            const dy = nearestTeammate.pos[1] - data.y;
+            const dx = nearestTeammate.pos[0] - data?.x;
+            const dy = nearestTeammate.pos[1] - data?.y;
             const distance = nearestTeammate.distance;
 
             // Normalize and scale to trade threshold
-            const ghostX = data.x + (dx / distance) * TRADE_THRESHOLD * 0.8;
-            const ghostY = data.y + (dy / distance) * TRADE_THRESHOLD * 0.8;
+            const ghostX = data?.x + (dx / distance) * TRADE_THRESHOLD * 0.8;
+            const ghostY = data?.y + (dy / distance) * TRADE_THRESHOLD * 0.8;
 
             const ghostId = `ghost-${ghostIdCounter.current++}`;
             setGhostTeammates([{
               id: ghostId,
-              deathX: data.x,
-              deathY: data.y,
-              deadPlayer: data.player,
+              deathX: data?.x,
+              deathY: data?.y,
+              deadPlayer: data?.player,
               ghostX,
               ghostY,
               nearestPlayer: nearestTeammate.name,
               actualDistance: Math.round(nearestTeammate.distance),
               optimalDistance: TRADE_THRESHOLD,
-              round: data.round,
+              round: data?.round,
             }]);
 
             // Auto-clear ghost after 3 seconds
@@ -447,10 +442,10 @@ export function useSocket(): UseSocketReturn {
 
     // Position updates for trade web
     socket.on('position_update', (data: PositionUpdate) => {
-      setPlayerPositions(data.positions);
-      playerPositionsRef.current = data.positions;
-      if (data.map_bounds) {
-        setMapBounds(data.map_bounds);
+      setPlayerPositions(data?.positions);
+      playerPositionsRef.current = data?.positions;
+      if (data?.map_bounds) {
+        setMapBounds(data?.map_bounds);
       }
     });
 
@@ -458,18 +453,18 @@ export function useSocket(): UseSocketReturn {
     socket.on('round_start', (data: { round: number; map_bounds?: MapBounds }) => {
       setRoundDeaths([]);
       setGhostTeammates([]);
-      if (data.map_bounds) {
-        setMapBounds(data.map_bounds);
+      if (data?.map_bounds) {
+        setMapBounds(data?.map_bounds);
       }
     });
 
     socket.on('speed_changed', (data: { speed: number }) => {
-      console.log(`Speed changed to ${data.speed}x`);
+      console.log(`Speed changed to ${data?.speed}x`);
     });
 
     // Game changed (new map in series) - archive current game data, then reset
     socket.on('game_changed', (data: { map: { name: string }; game_number: number }) => {
-      console.log(`Game changed to ${data.map?.name} (Game ${data.game_number})`);
+      console.log(`Game changed to ${data?.map?.name} (Game ${data?.game_number})`);
 
       // Archive current game data to series before resetting
       setSeriesData(prev => {
@@ -530,8 +525,8 @@ export function useSocket(): UseSocketReturn {
 
       // Update current game ref for next game
       currentGameRef.current = {
-        gameNumber: data.game_number,
-        mapName: data.map?.name || '',
+        gameNumber: data?.game_number,
+        mapName: data?.map?.name || '',
       };
 
       // Reset other per-game state

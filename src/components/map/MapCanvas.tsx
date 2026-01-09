@@ -2,8 +2,8 @@
 
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { MapBounds } from '@/types';
-import { getMapConfig, getCalibration, getReferencePoints } from '@/config/maps';
+import { getMapConfig, getCallouts, calloutToImagePosition, gridToNormalized } from '@/config/maps';
+import { DISTANCE_WARNING } from '@/lib/thresholds';
 
 interface DeathMarker {
   id: string;
@@ -42,17 +42,11 @@ interface MapCanvasProps {
   playerPositions?: PlayerPosition[];
   ghostTeammates?: GhostTeammate[];
   showTradeWeb?: boolean;
-  tradeableThreshold?: number; // Distance threshold for tradeable
-  bounds?: MapBounds;
+  tradeableThreshold?: number;
   onDeathClick?: (death: DeathMarker) => void;
-  showReferencePoints?: boolean; // Show calibration reference points
+  showCallouts?: boolean; // Show A/B/C site labels
+  showReferencePoints?: boolean; // Show all callout points for debugging
 }
-
-// Default bounds if not provided (fallback for maps without valorant-api config)
-const DEFAULT_BOUNDS: MapBounds = {
-  min: { x: -5000, y: -12000 },
-  max: { x: 9000, y: 3000 }
-};
 
 export function MapCanvas({
   mapName,
@@ -60,9 +54,9 @@ export function MapCanvas({
   playerPositions = [],
   ghostTeammates = [],
   showTradeWeb = false,
-  tradeableThreshold = 2000,
-  bounds = DEFAULT_BOUNDS,
+  tradeableThreshold = DISTANCE_WARNING,
   onDeathClick,
+  showCallouts = true,
   showReferencePoints = false,
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,10 +64,15 @@ export function MapCanvas({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  // Get map config, calibration, and reference points
+  // Get map config and callouts
   const mapConfig = useMemo(() => getMapConfig(mapName), [mapName]);
-  const calibration = useMemo(() => getCalibration(mapName), [mapName]);
-  const referencePoints = useMemo(() => getReferencePoints(mapName), [mapName]);
+  const callouts = useMemo(() => getCallouts(mapName), [mapName]);
+
+  // Filter to only site callouts for main display
+  const siteCallouts = useMemo(() =>
+    callouts.filter(c => c.name === 'Site' && ['A', 'B', 'C'].includes(c.superRegion)),
+    [callouts]
+  );
 
   // Update dimensions on resize
   useEffect(() => {
@@ -95,50 +94,33 @@ export function MapCanvas({
     setImageError(false);
   }, [mapName]);
 
-  // Convert game coordinates to canvas coordinates
-  // Uses GRID bounds for positioning, with calibration adjustments
+  /**
+   * Convert GRID game coordinates to canvas pixel coordinates
+   * Uses official valorant-api.com multipliers with swapped X/Y coordinates
+   */
   const gameToCanvas = useCallback((gameX: number, gameY: number) => {
     const { width, height } = dimensions;
-    const { min, max } = bounds;
 
-    // Calculate ranges
-    const rangeX = max.x - min.x || 1;
-    const rangeY = max.y - min.y || 1;
+    // Use the official valorant-api.com conversion formula
+    const normalized = gridToNormalized(gameX, gameY, mapName);
 
-    // Normalize to 0-1 based on bounds
-    const rawNormX = (gameX - min.x) / rangeX;
-    const rawNormY = (gameY - min.y) / rangeY;
-
-    // Apply calibration scale (around center 0.5)
-    const scaledX = 0.5 + (rawNormX - 0.5) * calibration.scale;
-    const scaledY = 0.5 + (rawNormY - 0.5) * calibration.scale;
-
-    // Apply calibration offset
-    const calibratedX = scaledX + calibration.offsetX;
-    const calibratedY = scaledY + calibration.offsetY;
-
-    // Add small padding so edge markers stay visible
-    const padding = 0.02;
-    const innerScale = 1 - (padding * 2);
-    const normalizedX = padding + calibratedX * innerScale;
-    const normalizedY = padding + calibratedY * innerScale;
-
-    // Clamp to valid range
-    const clampedX = Math.max(0, Math.min(1, normalizedX));
-    const clampedY = Math.max(0, Math.min(1, normalizedY));
+    if (!normalized) {
+      // Fallback for unknown maps - center of canvas
+      return { x: width / 2, y: height / 2 };
+    }
 
     return {
-      x: clampedX * width,
-      y: (1 - clampedY) * height, // Flip Y axis (GRID Y increases upward)
+      x: normalized.x * width,
+      y: normalized.y * height,
     };
-  }, [dimensions, bounds, calibration]);
+  }, [dimensions, mapName]);
 
-  // Calculate distance between two game positions
+  // Calculate distance between two game positions (in game units)
   const getDistance = (x1: number, y1: number, x2: number, y2: number) => {
     return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
   };
 
-  // Get map image from config
+  // Get map image from config (official valorant-api.com image)
   const mapImage = mapConfig?.image || null;
 
   // Filter C9 players for trade web
@@ -149,24 +131,15 @@ export function MapCanvas({
       ref={containerRef}
       className="map-container relative w-full aspect-square bg-[#060d17] rounded-lg overflow-hidden"
     >
-      {/* Map Background */}
+      {/* Map Background - Official valorant-api.com minimap */}
       {mapImage && !imageError ? (
         <img
           src={mapImage}
           alt={mapName}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
-            imageLoaded ? 'opacity-40' : 'opacity-0'
+            imageLoaded ? 'opacity-50' : 'opacity-0'
           }`}
-          style={{
-            transform: [
-              mapConfig?.rotation ? `rotate(${mapConfig.rotation}deg)` : '',
-              mapConfig?.flipX ? 'scaleX(-1)' : '',
-              mapConfig?.flipY ? 'scaleY(-1)' : '',
-              mapConfig?.zoom ? `scale(${mapConfig.zoom})` : '',
-              mapConfig?.scaleX ? `scaleX(${mapConfig.scaleX})` : '',
-              mapConfig?.scaleY ? `scaleY(${mapConfig.scaleY})` : '',
-            ].filter(Boolean).join(' ') || undefined,
-          }}
+          crossOrigin="anonymous"
           onLoad={() => setImageLoaded(true)}
           onError={() => setImageError(true)}
         />
@@ -186,17 +159,65 @@ export function MapCanvas({
         </div>
       )}
 
-      {/* Grid overlay for reference */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-        <defs>
-          <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-            <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#a0aec0" strokeWidth="0.5"/>
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
-      </svg>
+      {/* Site Labels (A, B, C) - using calibrated positions within map content area */}
+      {showCallouts && imageLoaded && siteCallouts.map((callout) => {
+        // Convert callout position (relative to map content) to image position
+        const imagePos = calloutToImagePosition(callout.screenX, callout.screenY, mapName);
+        if (!imagePos) return null;
+        const pos = {
+          x: imagePos.x * dimensions.width,
+          y: imagePos.y * dimensions.height,
+        };
+        return (
+          <div
+            key={`site-${callout.superRegion}`}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ left: pos.x, top: pos.y }}
+          >
+            <div className="w-8 h-8 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center backdrop-blur-sm">
+              <span className="text-sm font-bold text-white drop-shadow-lg">
+                {callout.superRegion}
+              </span>
+            </div>
+          </div>
+        );
+      })}
 
-      {/* Proximity Lines - Green = close, Red = far (walls not considered) */}
+      {/* Reference Points (all callouts for debugging) */}
+      {showReferencePoints && callouts.map((callout, idx) => {
+        // Convert callout position to image position
+        const imagePos = calloutToImagePosition(callout.screenX, callout.screenY, mapName);
+        if (!imagePos) return null;
+        const pos = {
+          x: imagePos.x * dimensions.width,
+          y: imagePos.y * dimensions.height,
+        };
+        const regionColor = {
+          'A': 'bg-green-500',
+          'B': 'bg-blue-500',
+          'C': 'bg-purple-500',
+          'Mid': 'bg-yellow-500',
+          'Attacker Side': 'bg-orange-500',
+          'Defender Side': 'bg-cyan-500',
+        }[callout.superRegion] || 'bg-gray-500';
+
+        return (
+          <div
+            key={`ref-${callout.superRegion}-${callout.name}-${idx}`}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ left: pos.x, top: pos.y }}
+          >
+            <div className={`w-2 h-2 rounded-full ${regionColor} border border-white/50`} />
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 whitespace-nowrap">
+              <span className="text-[8px] bg-black/80 text-white px-1 rounded">
+                {callout.superRegion} {callout.name}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Proximity Lines - Green = close, Red = far */}
       {showTradeWeb && c9Positions.length > 1 && (
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           {c9Positions.map((player1, i) =>
@@ -224,7 +245,7 @@ export function MapCanvas({
         </svg>
       )}
 
-      {/* Ghost Teammate Markers - Shows where teammates SHOULD have been */}
+      {/* Ghost Teammate Markers */}
       <AnimatePresence>
         {ghostTeammates.map((ghost) => {
           const deathPos = gameToCanvas(ghost.deathX, ghost.deathY);
@@ -267,34 +288,6 @@ export function MapCanvas({
           );
         })}
       </AnimatePresence>
-
-      {/* Reference Point Markers (for calibration) */}
-      {showReferencePoints && referencePoints.map((point) => {
-        const pos = gameToCanvas(point.x, point.y);
-        return (
-          <div
-            key={`ref-${point.name}`}
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ left: pos.x, top: pos.y }}
-          >
-            {/* Crosshair marker */}
-            <div className="relative">
-              <div className="absolute w-6 h-0.5 bg-yellow-400 -left-3 top-0" />
-              <div className="absolute w-0.5 h-6 bg-yellow-400 left-0 -top-3" />
-              <div className="absolute w-3 h-3 rounded-full bg-yellow-400/50 -left-1.5 -top-1.5 border-2 border-yellow-400" />
-            </div>
-            {/* Label with coordinates */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-center">
-              <span className="block text-[10px] font-bold px-1.5 py-0.5 rounded-t bg-yellow-400 text-black">
-                {point.name}
-              </span>
-              <span className="block text-[8px] font-mono px-1.5 py-0.5 rounded-b bg-black/80 text-yellow-400">
-                {point.x.toFixed(0)}, {point.y.toFixed(0)}
-              </span>
-            </div>
-          </div>
-        );
-      })}
 
       {/* Player Position Markers */}
       <AnimatePresence>
@@ -389,18 +382,10 @@ export function MapCanvas({
         </div>
       </div>
 
-      {/* Round indicator */}
+      {/* Death count indicator */}
       {deaths.length > 0 && (
         <div className="absolute top-2 right-2 px-2 py-1 bg-black/50 rounded text-xs text-white">
           {deaths.length} death{deaths.length !== 1 ? 's' : ''}
-        </div>
-      )}
-
-      {/* Debug: Show bounds and aspect info */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/70 rounded text-[8px] text-white/70 font-mono">
-          {((bounds.max.x - bounds.min.x) / (bounds.max.y - bounds.min.y)).toFixed(2)} aspect
-          {showTradeWeb && ` | ${c9Positions.length}p`}
         </div>
       )}
     </div>

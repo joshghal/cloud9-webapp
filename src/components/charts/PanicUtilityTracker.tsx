@@ -39,8 +39,8 @@ export function PanicUtilityTracker({ events, currentRound }: PanicUtilityTracke
     return Object.entries(stats)
       .map(([player, data]) => ({
         player,
-        count: data.count,
-        topAbility: Object.entries(data.abilities)
+        count: data?.count,
+        topAbility: Object.entries(data?.abilities)
           .sort((a, b) => b[1] - a[1])[0]?.[0] || null
       }))
       .sort((a, b) => b.count - a.count);

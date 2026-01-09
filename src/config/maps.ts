@@ -1,14 +1,313 @@
-// VALORANT map configuration with calibration for GRID coordinates
-// Reference points from valorant-api.com callouts for calibration verification
+// VALORANT map configuration using official valorant-api.com multipliers
+//
+// Coordinate Conversion Formula (IMPORTANT - coordinates are SWAPPED):
+//   minimapX = gameY * xMultiplier + xScalarToAdd
+//   minimapY = gameX * yMultiplier + yScalarToAdd
+//
+// The X and Y coordinates from GRID data must be swapped before applying multipliers
 
-export interface MapCalibration {
-  // Offset in normalized coordinates (0-1 range)
-  // Positive offsetX shifts markers right, positive offsetY shifts markers down
+export interface MapMultipliers {
+  xMultiplier: number;
+  yMultiplier: number;
+  xScalarToAdd: number;
+  yScalarToAdd: number;
+}
+
+export interface Callout {
+  name: string;
+  superRegion: string;
+  // Normalized position (0-1) on the minimap image
+  screenX: number;
+  screenY: number;
+}
+
+export interface MapConfig {
+  displayName: string;
+  uuid: string;
+  image: string;
+  // Official valorant-api.com multipliers for coordinate conversion
+  multipliers: MapMultipliers;
+  // Site callouts with pre-calculated minimap positions
+  callouts: Callout[];
+}
+
+// Map configurations with official valorant-api.com multipliers
+export const MAP_CONFIGS: Record<string, MapConfig> = {
+  ascent: {
+    displayName: 'Ascent',
+    uuid: '7eaecc1b-4337-bbf6-6ab9-04b8f06b3319',
+    image: 'https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/displayicon.png',
+    multipliers: {
+      xMultiplier: 7e-05,
+      yMultiplier: -7e-05,
+      xScalarToAdd: 0.813895,
+      yScalarToAdd: 0.573242,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.350, screenY: 0.142 },
+      { name: 'Site', superRegion: 'B', screenX: 0.285, screenY: 0.737 },
+    ],
+  },
+  split: {
+    displayName: 'Split',
+    uuid: 'd960549e-485c-e861-8d71-aa9d1aed12a2',
+    image: 'https://media.valorant-api.com/maps/d960549e-485c-e861-8d71-aa9d1aed12a2/displayicon.png',
+    multipliers: {
+      xMultiplier: 7.8e-05,
+      yMultiplier: -7.8e-05,
+      xScalarToAdd: 0.842188,
+      yScalarToAdd: 0.697578,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.315, screenY: 0.184 },
+      { name: 'Site', superRegion: 'B', screenX: 0.354, screenY: 0.867 },
+    ],
+  },
+  bind: {
+    displayName: 'Bind',
+    uuid: '2c9d57ec-4431-9c5e-2939-8f9ef6dd5cba',
+    image: 'https://media.valorant-api.com/maps/2c9d57ec-4431-9c5e-2939-8f9ef6dd5cba/displayicon.png',
+    multipliers: {
+      xMultiplier: 5.9e-05,
+      yMultiplier: -5.9e-05,
+      xScalarToAdd: 0.576941,
+      yScalarToAdd: 0.967566,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.734, screenY: 0.333 },
+      { name: 'Site', superRegion: 'B', screenX: 0.292, screenY: 0.312 },
+    ],
+  },
+  haven: {
+    displayName: 'Haven',
+    uuid: '2bee0dc9-4ffe-519b-1cbd-7fbe763a6047',
+    image: 'https://media.valorant-api.com/maps/2bee0dc9-4ffe-519b-1cbd-7fbe763a6047/displayicon.png',
+    multipliers: {
+      xMultiplier: 7.5e-05,
+      yMultiplier: -7.5e-05,
+      xScalarToAdd: 1.09345,
+      yScalarToAdd: 0.642728,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.402, screenY: 0.170 },
+      { name: 'Site', superRegion: 'B', screenX: 0.401, screenY: 0.501 },
+      { name: 'Site', superRegion: 'C', screenX: 0.418, screenY: 0.821 },
+    ],
+  },
+  breeze: {
+    displayName: 'Breeze',
+    uuid: '2fb9a4fd-47b8-4e7d-a969-74b4046ebd53',
+    image: 'https://media.valorant-api.com/maps/2fb9a4fd-47b8-4e7d-a969-74b4046ebd53/displayicon.png',
+    multipliers: {
+      xMultiplier: 7e-05,
+      yMultiplier: -7e-05,
+      xScalarToAdd: 0.465123,
+      yScalarToAdd: 0.833078,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.908, screenY: 0.495 },
+      { name: 'Site', superRegion: 'B', screenX: 0.070, screenY: 0.382 },
+    ],
+  },
+  icebox: {
+    displayName: 'Icebox',
+    uuid: 'e2ad5c54-4114-a870-9641-8ea21279579a',
+    image: 'https://media.valorant-api.com/maps/e2ad5c54-4114-a870-9641-8ea21279579a/displayicon.png',
+    multipliers: {
+      xMultiplier: 7.2e-05,
+      yMultiplier: -7.2e-05,
+      xScalarToAdd: 0.460214,
+      yScalarToAdd: 0.304687,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.691, screenY: 0.765 },
+      { name: 'Site', superRegion: 'B', screenX: 0.646, screenY: 0.180 },
+    ],
+  },
+  fracture: {
+    displayName: 'Fracture',
+    uuid: 'b529448b-4d60-346e-e89e-00a4c527a405',
+    image: 'https://media.valorant-api.com/maps/b529448b-4d60-346e-e89e-00a4c527a405/displayicon.png',
+    multipliers: {
+      xMultiplier: 7.8e-05,
+      yMultiplier: -7.8e-05,
+      xScalarToAdd: 0.556952,
+      yScalarToAdd: 1.155886,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.820, screenY: 0.522 },
+      { name: 'Site', superRegion: 'B', screenX: 0.093, screenY: 0.518 },
+    ],
+  },
+  pearl: {
+    displayName: 'Pearl',
+    uuid: 'fd267378-4d1d-484f-ff52-77821ed10dc2',
+    image: 'https://media.valorant-api.com/maps/fd267378-4d1d-484f-ff52-77821ed10dc2/displayicon.png',
+    multipliers: {
+      xMultiplier: 7.8e-05,
+      yMultiplier: -7.8e-05,
+      xScalarToAdd: 0.480469,
+      yScalarToAdd: 0.916016,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.915, screenY: 0.400 },
+      { name: 'Site', superRegion: 'B', screenX: 0.258, screenY: 0.464 },
+    ],
+  },
+  lotus: {
+    displayName: 'Lotus',
+    uuid: '2fe4ed3a-450a-948b-6d6b-e89a78e680a9',
+    image: 'https://media.valorant-api.com/maps/2fe4ed3a-450a-948b-6d6b-e89a78e680a9/displayicon.png',
+    multipliers: {
+      xMultiplier: 7.2e-05,
+      yMultiplier: -7.2e-05,
+      xScalarToAdd: 0.454789,
+      yScalarToAdd: 0.917752,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.855, screenY: 0.361 },
+      { name: 'Site', superRegion: 'B', screenX: 0.503, screenY: 0.459 },
+      { name: 'Site', superRegion: 'C', screenX: 0.148, screenY: 0.437 },
+    ],
+  },
+  sunset: {
+    displayName: 'Sunset',
+    uuid: '92584fbe-486a-b1b2-9faa-39b0f486b498',
+    image: 'https://media.valorant-api.com/maps/92584fbe-486a-b1b2-9faa-39b0f486b498/displayicon.png',
+    multipliers: {
+      xMultiplier: 7.8e-05,
+      yMultiplier: -7.8e-05,
+      xScalarToAdd: 0.5,
+      yScalarToAdd: 0.515625,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.750, screenY: 0.438 },
+      { name: 'Site', superRegion: 'B', screenX: 0.044, screenY: 0.562 },
+    ],
+  },
+  abyss: {
+    displayName: 'Abyss',
+    uuid: '224b0a95-48b9-f703-1bd8-67aca101a61f',
+    image: 'https://media.valorant-api.com/maps/224b0a95-48b9-f703-1bd8-67aca101a61f/displayicon.png',
+    multipliers: {
+      xMultiplier: 8.1e-05,
+      yMultiplier: -8.1e-05,
+      xScalarToAdd: 0.5,
+      yScalarToAdd: 0.5,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.484, screenY: 0.152 },
+      { name: 'Site', superRegion: 'B', screenX: 0.405, screenY: 0.858 },
+    ],
+  },
+  corrode: {
+    displayName: 'Corrode',
+    uuid: '1c18ab1f-420d-0d8b-71d0-77ad3c439115',
+    image: 'https://media.valorant-api.com/maps/1c18ab1f-420d-0d8b-71d0-77ad3c439115/displayicon.png',
+    multipliers: {
+      xMultiplier: 7e-05,
+      yMultiplier: -7e-05,
+      xScalarToAdd: 0.526158,
+      yScalarToAdd: 0.5,
+    },
+    callouts: [
+      { name: 'Site', superRegion: 'A', screenX: 0.398, screenY: 0.258 },
+      { name: 'Site', superRegion: 'B', screenX: 0.444, screenY: 0.690 },
+    ],
+  },
+};
+
+/**
+ * Convert GRID game coordinates to normalized minimap position (0-1)
+ * IMPORTANT: X and Y coordinates are SWAPPED in the formula!
+ * minimapX = gameY * xMultiplier + xScalarToAdd
+ * minimapY = gameX * yMultiplier + yScalarToAdd
+ */
+export function gridToNormalized(
+  gridX: number,
+  gridY: number,
+  mapName: string
+): { x: number; y: number } | null {
+  const config = getMapConfig(mapName);
+  if (!config) return null;
+
+  const { xMultiplier, yMultiplier, xScalarToAdd, yScalarToAdd } = config.multipliers;
+
+  // SWAP coordinates: gameY -> minimapX, gameX -> minimapY
+  const minimapX = gridY * xMultiplier + xScalarToAdd;
+  const minimapY = gridX * yMultiplier + yScalarToAdd;
+
+  // Clamp to valid range with small buffer
+  const clampedX = Math.max(0.01, Math.min(0.99, minimapX));
+  const clampedY = Math.max(0.01, Math.min(0.99, minimapY));
+
+  return { x: clampedX, y: clampedY };
+}
+
+/**
+ * Convert GRID game coordinates to pixel position on map image
+ */
+export function gridToPixel(
+  gridX: number,
+  gridY: number,
+  mapName: string,
+  imageWidth: number,
+  imageHeight: number
+): { x: number; y: number } | null {
+  const normalized = gridToNormalized(gridX, gridY, mapName);
+  if (!normalized) return null;
+
+  return {
+    x: normalized.x * imageWidth,
+    y: normalized.y * imageHeight,
+  };
+}
+
+export function getMapConfig(mapName: string): MapConfig | null {
+  const key = mapName.toLowerCase().replace(/[^a-z]/g, '');
+  return MAP_CONFIGS[key] || null;
+}
+
+export function getCallouts(mapName: string): Callout[] {
+  const config = getMapConfig(mapName);
+  return config?.callouts || [];
+}
+
+export function getMapImage(mapName: string): string | null {
+  const config = getMapConfig(mapName);
+  return config?.image || null;
+}
+
+export function getMapMultipliers(mapName: string): MapMultipliers | null {
+  const config = getMapConfig(mapName);
+  return config?.multipliers || null;
+}
+
+// Legacy type exports for backwards compatibility
+export interface MapBounds {
+  min: { x: number; y: number };
+  max: { x: number; y: number };
+}
+
+export interface GameBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+export interface ImagePadding {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+export type MapCalibration = {
   offsetX: number;
   offsetY: number;
-  // Scale factor (1 = no change, >1 = spread out, <1 = compress)
   scale: number;
-}
+};
 
 export interface ReferencePoint {
   name: string;
@@ -16,183 +315,32 @@ export interface ReferencePoint {
   y: number;
 }
 
-export interface MapConfig {
-  displayName: string;
-  image: string;
-  // Rotation in degrees (0, 90, 180, 270) to align map image with GRID coordinates
-  rotation: number;
-  // Flip horizontally or vertically
-  flipX?: boolean;
-  flipY?: boolean;
-  // Zoom level for the image (1 = normal, 1.2 = 120%)
-  zoom?: number;
-  // Stretch width only (1 = normal, 1.1 = 110% width)
-  scaleX?: number;
-  // Stretch height only (1 = normal, 1.1 = 110% height)
-  scaleY?: number;
-  // Calibration to align GRID coordinates with map image
-  calibration: MapCalibration;
-  // Reference points for calibration (known locations from valorant-api.com)
-  referencePoints: ReferencePoint[];
+// Legacy function stubs
+export function getMapBounds(_mapName: string): MapBounds | null {
+  return null;
 }
 
-// Default calibration - no adjustment
-const DEFAULT_CALIBRATION: MapCalibration = {
-  offsetX: 0,
-  offsetY: 0,
-  scale: 1,
-};
-
-export const MAP_CONFIGS: Record<string, MapConfig> = {
-  ascent: {
-    displayName: 'Ascent',
-    image: '/maps/ascent.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 6153.59, y: -6626.21 },
-      { name: 'B Site', x: -2344.07, y: -7548.51 },
-      { name: 'Mid Catwalk', x: 2315.79, y: -4127.26 },
-    ],
-  },
-  split: {
-    displayName: 'Split',
-    image: '/maps/split.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 6588.66, y: -6761.13 },
-      { name: 'B Site', x: -2167.25, y: -6264.77 },
-      { name: 'Mid Bottom', x: 1922.66, y: -2899.46 },
-    ],
-  },
-  fracture: {
-    displayName: 'Fracture',
-    image: '/maps/fracture.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 8125.76, y: 3373.79 },
-      { name: 'B Site', x: 8178, y: -5942 },
-      { name: 'Mid Spawn', x: 9156, y: -677 },
-    ],
-  },
-  bind: {
-    displayName: 'Bind',
-    image: '/maps/bind.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 10747.90, y: 2664.44 },
-      { name: 'B Site', x: 11108.11, y: -4831.46 },
-      { name: 'Mid Courtyard', x: -600, y: -1200 },
-    ],
-  },
-  breeze: {
-    displayName: 'Breeze',
-    image: '/maps/breeze.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 4825, y: 6325 },
-      { name: 'B Site', x: 6450, y: -5650 },
-      { name: 'Mid Nest', x: 8650, y: 275 },
-    ],
-  },
-  abyss: {
-    displayName: 'Abyss',
-    image: '/maps/abyss.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 4300, y: -200 },
-      { name: 'B Site', x: -4425, y: -1175 },
-      { name: 'Mid Bend', x: -1700, y: 1075 },
-    ],
-  },
-  lotus: {
-    displayName: 'Lotus',
-    image: '/maps/lotus.png',
-    rotation: 90,  // Rotate 90 degrees right
-    flipX: true,   // Flip horizontally
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 7735.54, y: 5557.31 },
-      { name: 'B Site', x: 6368.03, y: 668.18 },
-      { name: 'C Site', x: 6676.66, y: -4265.88 },
-    ],
-  },
-  sunset: {
-    displayName: 'Sunset',
-    image: '/maps/sunset.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 1000, y: 3200 },
-      { name: 'B Site', x: -600, y: -5850 },
-      { name: 'Mid Top', x: 2000, y: -2000 },
-    ],
-  },
-  pearl: {
-    displayName: 'Pearl',
-    image: '/maps/pearl.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 6613.85, y: 5569.53 },
-      { name: 'B Site', x: 5800, y: -2850 },
-      { name: 'Mid Connector', x: 6047.05, y: 1800.04 },
-    ],
-  },
-  icebox: {
-    displayName: 'Icebox',
-    image: '/maps/icebox.png',
-    rotation: 0,
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: -6400, y: 3200 },
-      { name: 'B Site', x: 1725, y: 2575 },
-      { name: 'Mid Boiler', x: -3375, y: 2925 },
-    ],
-  },
-  corrode: {
-    displayName: 'Corrode',
-    image: '/maps/corrode.png',
-    rotation: -90,  // Rotate 90 degrees left
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 3458.28, y: -1824.50 },
-      { name: 'B Site', x: -2716.72, y: -1174.51 },
-      { name: 'Mid Stairs', x: 133.28, y: -1474.51 },
-    ],
-  },
-  haven: {
-    displayName: 'Haven',
-    image: '/maps/haven.png',
-    rotation: -90,  // Rotate 90 degrees left
-    flipY: true,    // Flip vertically
-    zoom: 1.05,
-    scaleY: 1.1,    // Stretch height by 10%
-    calibration: { offsetX: 0, offsetY: 0, scale: 1 },
-    referencePoints: [
-      { name: 'A Site', x: 4316.09, y: -6782.34 },
-      { name: 'B Site', x: 2760.47, y: -5936.08 },
-      { name: 'C Site', x: -2284.45, y: -7050.07 },
-    ],
-  },
-};
-
-export function getMapConfig(mapName: string): MapConfig | null {
-  const key = mapName.toLowerCase().replace(/[^a-z]/g, '');
-  return MAP_CONFIGS[key] || null;
+export function getGameBounds(_mapName: string): GameBounds | null {
+  return null;
 }
 
-export function getCalibration(mapName: string): MapCalibration {
-  const config = getMapConfig(mapName);
-  return config?.calibration || DEFAULT_CALIBRATION;
+export function getImagePadding(_mapName: string): ImagePadding | null {
+  return null;
 }
 
-export function getReferencePoints(mapName: string): ReferencePoint[] {
-  const config = getMapConfig(mapName);
-  return config?.referencePoints || [];
+export function getCalibration(_mapName: string): MapCalibration {
+  return { offsetX: 0, offsetY: 0, scale: 1 };
+}
+
+export function getReferencePoints(_mapName: string): ReferencePoint[] {
+  return [];
+}
+
+// Callout position is now stored directly in screenX/screenY
+export function calloutToImagePosition(
+  screenX: number,
+  screenY: number,
+  _mapName: string
+): { x: number; y: number } | null {
+  return { x: screenX, y: screenY };
 }

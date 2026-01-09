@@ -162,6 +162,8 @@ export interface TimeoutAlert {
 export interface KillEvent {
   killer: string;
   victim: string;
+  killer_team?: 'c9' | 'opp';
+  victim_team?: 'c9' | 'opp';
   round: number;
 }
 
@@ -180,46 +182,61 @@ export interface ReplayComplete {
   spatial_timeline: SpatialTimeline;
 }
 
-// Map coordinate normalization
+// Map coordinate normalization - bounds from actual GRID esports match data
 export const VALORANT_MAPS: Record<string, { bounds: MapBounds; image: string }> = {
   lotus: {
-    bounds: { min: { x: -6000, y: -6000 }, max: { x: 6000, y: 6000 } },
+    // GRID bounds: min {x: 300, y: -5500}, max {x: 11000, y: 6550}
+    bounds: { min: { x: 300, y: -5500 }, max: { x: 11000, y: 6550 } },
     image: '/maps/lotus.png'
   },
   haven: {
-    bounds: { min: { x: -5500, y: -5500 }, max: { x: 5500, y: 5500 } },
+    // GRID bounds: min {x: -3700, y: -14100}, max {x: 7450, y: -1800}
+    bounds: { min: { x: -3700, y: -14100 }, max: { x: 7450, y: -1800 } },
     image: '/maps/haven.png'
   },
   ascent: {
-    bounds: { min: { x: -5000, y: -5000 }, max: { x: 5000, y: 5000 } },
+    // GRID bounds: min {x: -4850, y: -11100}, max {x: 7550, y: 2200}
+    bounds: { min: { x: -4850, y: -11100 }, max: { x: 7550, y: 2200 } },
     image: '/maps/ascent.png'
   },
   bind: {
-    bounds: { min: { x: -4500, y: -4500 }, max: { x: 4500, y: 4500 } },
+    // GRID bounds: min {x: 100, y: -7300}, max {x: 16100, y: 6050}
+    bounds: { min: { x: 100, y: -7300 }, max: { x: 16100, y: 6050 } },
     image: '/maps/bind.png'
   },
   icebox: {
-    bounds: { min: { x: -5000, y: -5000 }, max: { x: 5000, y: 5000 } },
+    // GRID bounds: min {x: -8300, y: -5200}, max {x: 3100, y: 7200}
+    bounds: { min: { x: -8300, y: -5200 }, max: { x: 3100, y: 7200 } },
     image: '/maps/icebox.png'
   },
   sunset: {
-    bounds: { min: { x: -5000, y: -5000 }, max: { x: 5000, y: 5000 } },
+    // Estimated - no GRID data available yet
+    bounds: { min: { x: -6500, y: -9000 }, max: { x: 6500, y: 7000 } },
     image: '/maps/sunset.png'
   },
   fracture: {
-    bounds: { min: { x: -6000, y: -6000 }, max: { x: 6000, y: 6000 } },
+    // GRID bounds: min {x: 3000, y: -6850}, max {x: 13900, y: 4700}
+    bounds: { min: { x: 3000, y: -6850 }, max: { x: 13900, y: 4700 } },
     image: '/maps/fracture.png'
   },
   abyss: {
-    bounds: { min: { x: -5000, y: -5000 }, max: { x: 5000, y: 5000 } },
+    // Estimated - no GRID data available yet
+    bounds: { min: { x: -7000, y: -7000 }, max: { x: 7000, y: 7000 } },
     image: '/maps/abyss.png'
   },
   pearl: {
-    bounds: { min: { x: -5000, y: -5000 }, max: { x: 5000, y: 5000 } },
+    // GRID bounds: min {x: -500, y: -6100}, max {x: 11250, y: 6550}
+    bounds: { min: { x: -500, y: -6100 }, max: { x: 11250, y: 6550 } },
     image: '/maps/pearl.png'
   },
   split: {
-    bounds: { min: { x: -4500, y: -4500 }, max: { x: 4500, y: 4500 } },
+    // GRID bounds: min {x: -3450, y: -10050}, max {x: 8300, y: 950}
+    bounds: { min: { x: -3450, y: -10050 }, max: { x: 8300, y: 950 } },
     image: '/maps/split.png'
+  },
+  corrode: {
+    // GRID bounds: min {x: -6000, y: -7100}, max {x: 6000, y: 6500}
+    bounds: { min: { x: -6000, y: -7100 }, max: { x: 6000, y: 6500 } },
+    image: '/maps/corrode.png'
   }
 };
