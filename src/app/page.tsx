@@ -47,6 +47,7 @@ export default function Home() {
   const [aiEnabled, setAiEnabled] = useState(true);
   const [activeAlert, setActiveAlert] = useState<TimeoutAlertType | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
+  const [showSiteLabels, setShowSiteLabels] = useState(true);
   const [activeSection, setActiveSection] = useState<NavSection>('live');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -308,32 +309,59 @@ export default function Home() {
         {/* Visualization Grid */}
         <div className="grid grid-cols-2 gap-6">
           <div className="card">
-            <h3 className="card-header flex items-center gap-2">
-              Round Deaths
-              {currentRoundGhosts.length > 0 && (
-                <span className="text-[10px] bg-[#ffa502]/20 text-[#ffa502] px-1.5 py-0.5 rounded">
-                  {currentRoundGhosts.length} untradeable
-                </span>
-              )}
-            </h3>
+            <div className="card-header flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span>Round Deaths</span>
+                {currentRoundGhosts.length > 0 && (
+                  <span className="text-[10px] bg-[#ffa502]/20 text-[#ffa502] px-1.5 py-0.5 rounded">
+                    {currentRoundGhosts.length} untradeable
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowSiteLabels(!showSiteLabels)}
+                className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+                  showSiteLabels
+                    ? 'bg-[#00a8e8]/20 text-[#00a8e8]'
+                    : 'bg-[#1e293b] text-[#a0aec0]'
+                }`}
+                title="Toggle site labels (A, B, C)"
+              >
+                {showSiteLabels ? 'Sites ✓' : 'Sites'}
+              </button>
+            </div>
             <MapCanvas
               mapName={roundData?.map?.name || 'Unknown'}
               deaths={roundDeaths}
               ghostTeammates={currentRoundGhosts}
               showReferencePoints={showCalibration}
+              showCallouts={showSiteLabels}
             />
           </div>
 
           <div className="card">
-            <h3 className="card-header flex items-center gap-2">
-              Proximity Web
-              <span
-                className="text-[10px] text-[#a0aec0] cursor-help"
-                title="Shows player distances. Green = close, Red = far. Note: Does not account for walls/obstacles."
+            <div className="card-header flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span>Proximity Web</span>
+                <span
+                  className="text-[10px] text-[#a0aec0] cursor-help"
+                  title="Shows player distances. Green = close, Red = far. Paths follow walkable areas."
+                >
+                  [?]
+                </span>
+              </div>
+              <button
+                onClick={() => setShowSiteLabels(!showSiteLabels)}
+                className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+                  showSiteLabels
+                    ? 'bg-[#00a8e8]/20 text-[#00a8e8]'
+                    : 'bg-[#1e293b] text-[#a0aec0]'
+                }`}
+                title="Toggle site labels (A, B, C)"
               >
-                [?]
-              </span>
-            </h3>
+                {showSiteLabels ? 'Sites ✓' : 'Sites'}
+              </button>
+            </div>
             <MapCanvas
               mapName={roundData?.map?.name || 'Unknown'}
               deaths={[]}
@@ -346,6 +374,7 @@ export default function Home() {
               showTradeWeb={true}
               tradeableThreshold={roundData?.map?.diagonal ? roundData?.map.diagonal * 0.15 : 2500}
               showReferencePoints={showCalibration}
+              showCallouts={showSiteLabels}
             />
           </div>
         </div>

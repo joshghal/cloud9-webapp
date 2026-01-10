@@ -11,6 +11,8 @@ import type {
   TradeTimeEntry,
   MapBounds
 } from '@/types';
+import { validateGhostPosition, normalizedToGrid } from '@/config/maps';
+import { findOptimalGhostPosition } from '@/lib/pathfinding';
 
 interface DeathEvent {
   id: string;
@@ -408,14 +410,52 @@ export function useSocket(): UseSocketReturn {
 
           // If nearest teammate was too far, create ghost position
           if (nearestTeammate && nearestTeammate.distance > TRADE_THRESHOLD) {
-            // Calculate ghost position: along vector from death to teammate, at TRADE_THRESHOLD distance
-            const dx = nearestTeammate.pos[0] - data?.x;
-            const dy = nearestTeammate.pos[1] - data?.y;
-            const distance = nearestTeammate.distance;
+            const mapName = currentGameRef.current.mapName;
+            let ghostX: number;
+            let ghostY: number;
 
-            // Normalize and scale to trade threshold
-            const ghostX = data?.x + (dx / distance) * TRADE_THRESHOLD * 0.8;
-            const ghostY = data?.y + (dy / distance) * TRADE_THRESHOLD * 0.8;
+            // Try to find optimal ghost position using pathfinding
+            const optimalPos = findOptimalGhostPosition(
+              data?.x,
+              data?.y,
+              nearestTeammate.pos[0],
+              nearestTeammate.pos[1],
+              TRADE_THRESHOLD,
+              mapName
+            );
+
+            if (optimalPos) {
+              // Convert normalized position back to game coordinates
+              const gamePos = normalizedToGrid(optimalPos.x, optimalPos.y, mapName);
+              if (gamePos) {
+                ghostX = gamePos.x;
+                ghostY = gamePos.y;
+              } else {
+                // Fallback to simple vector calculation
+                const dx = nearestTeammate.pos[0] - data?.x;
+                const dy = nearestTeammate.pos[1] - data?.y;
+                const distance = nearestTeammate.distance;
+                ghostX = data?.x + (dx / distance) * TRADE_THRESHOLD * 0.8;
+                ghostY = data?.y + (dy / distance) * TRADE_THRESHOLD * 0.8;
+              }
+            } else {
+              // Fallback: Calculate ghost position with simple vector + validation
+              const dx = nearestTeammate.pos[0] - data?.x;
+              const dy = nearestTeammate.pos[1] - data?.y;
+              const distance = nearestTeammate.distance;
+              const rawGhostX = data?.x + (dx / distance) * TRADE_THRESHOLD * 0.8;
+              const rawGhostY = data?.y + (dy / distance) * TRADE_THRESHOLD * 0.8;
+
+              const validated = validateGhostPosition(
+                rawGhostX,
+                rawGhostY,
+                data?.x,
+                data?.y,
+                mapName
+              );
+              ghostX = validated.x;
+              ghostY = validated.y;
+            }
 
             const ghostId = `ghost-${ghostIdCounter.current++}`;
             setGhostTeammates([{

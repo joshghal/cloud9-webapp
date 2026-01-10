@@ -4,6 +4,8 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMapConfig, getCallouts, calloutToImagePosition, gridToNormalized } from '@/config/maps';
 import { DISTANCE_WARNING } from '@/lib/thresholds';
+import { findPath } from '@/lib/pathfinding';
+import { getNavGrid } from '@/data/navgrids';
 
 interface DeathMarker {
   id: string;
@@ -46,6 +48,7 @@ interface MapCanvasProps {
   onDeathClick?: (death: DeathMarker) => void;
   showCallouts?: boolean; // Show A/B/C site labels
   showReferencePoints?: boolean; // Show all callout points for debugging
+  showNavGrid?: boolean; // Debug: show navigation grid overlay
 }
 
 export function MapCanvas({
@@ -58,6 +61,7 @@ export function MapCanvas({
   onDeathClick,
   showCallouts = true,
   showReferencePoints = false,
+  showNavGrid = false,
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 400, height: 400 });
@@ -159,6 +163,33 @@ export function MapCanvas({
         </div>
       )}
 
+      {/* Debug: Navigation Grid Overlay */}
+      {showNavGrid && (() => {
+        const navGrid = getNavGrid(mapName);
+        if (!navGrid) return null;
+        const cellWidth = dimensions.width / navGrid.gridSize;
+        const cellHeight = dimensions.height / navGrid.gridSize;
+        return (
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.5 }}>
+            {navGrid.grid.map((row, y) =>
+              row.map((cell, x) => (
+                cell === 0 ? ( // Only show walls (0 = wall)
+                  <rect
+                    key={`${x}-${y}`}
+                    x={x * cellWidth}
+                    y={y * cellHeight}
+                    width={cellWidth}
+                    height={cellHeight}
+                    fill="red"
+                    opacity={0.4}
+                  />
+                ) : null
+              ))
+            )}
+          </svg>
+        );
+      })()}
+
       {/* Site Labels (A, B, C) - using calibrated positions within map content area */}
       {showCallouts && imageLoaded && siteCallouts.map((callout) => {
         // Convert callout position (relative to map content) to image position
@@ -217,15 +248,50 @@ export function MapCanvas({
         );
       })}
 
-      {/* Proximity Lines - Green = close, Red = far */}
+      {/* Proximity Lines - Green = close, Red = far - Now with pathfinding! */}
       {showTradeWeb && c9Positions.length > 1 && (
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           {c9Positions.map((player1, i) =>
             c9Positions.slice(i + 1).map((player2) => {
-              const pos1 = gameToCanvas(player1.x, player1.y);
-              const pos2 = gameToCanvas(player2.x, player2.y);
               const distance = getDistance(player1.x, player1.y, player2.x, player2.y);
               const isClose = distance <= tradeableThreshold;
+
+              // Get pathfinding route between players
+              const path = findPath(
+                player1.x, player1.y,
+                player2.x, player2.y,
+                mapName
+              );
+
+              // Convert path to canvas coordinates
+              if (path && path.length > 1) {
+                // Use pathfinding result - render as polyline
+                const points = path.map(p => {
+                  const canvasPos = {
+                    x: p.x * dimensions.width,
+                    y: p.y * dimensions.height,
+                  };
+                  return `${canvasPos.x},${canvasPos.y}`;
+                }).join(' ');
+
+                return (
+                  <polyline
+                    key={`${player1.name}-${player2.name}`}
+                    points={points}
+                    fill="none"
+                    stroke={isClose ? '#2ed573' : '#ff4757'}
+                    strokeWidth={isClose ? 2 : 1}
+                    strokeDasharray={isClose ? 'none' : '5,5'}
+                    opacity={isClose ? 0.7 : 0.4}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                );
+              }
+
+              // Fallback to straight line if no path found
+              const pos1 = gameToCanvas(player1.x, player1.y);
+              const pos2 = gameToCanvas(player2.x, player2.y);
 
               return (
                 <line
@@ -251,20 +317,42 @@ export function MapCanvas({
           const deathPos = gameToCanvas(ghost.deathX, ghost.deathY);
           const ghostPos = gameToCanvas(ghost.ghostX, ghost.ghostY);
 
+          // Get pathfinding route for ghost line
+          const ghostPath = findPath(
+            ghost.deathX, ghost.deathY,
+            ghost.ghostX, ghost.ghostY,
+            mapName
+          );
+
           return (
             <div key={ghost.id}>
-              {/* Line from death to ghost position */}
+              {/* Line from death to ghost position - now with pathfinding */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                <line
-                  x1={deathPos.x}
-                  y1={deathPos.y}
-                  x2={ghostPos.x}
-                  y2={ghostPos.y}
-                  stroke="#ffa502"
-                  strokeWidth="2"
-                  strokeDasharray="6,4"
-                  opacity="0.8"
-                />
+                {ghostPath && ghostPath.length > 1 ? (
+                  <polyline
+                    points={ghostPath.map(p =>
+                      `${p.x * dimensions.width},${p.y * dimensions.height}`
+                    ).join(' ')}
+                    fill="none"
+                    stroke="#ffa502"
+                    strokeWidth="2"
+                    strokeDasharray="6,4"
+                    opacity="0.8"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                ) : (
+                  <line
+                    x1={deathPos.x}
+                    y1={deathPos.y}
+                    x2={ghostPos.x}
+                    y2={ghostPos.y}
+                    stroke="#ffa502"
+                    strokeWidth="2"
+                    strokeDasharray="6,4"
+                    opacity="0.8"
+                  />
+                )}
               </svg>
 
               {/* Ghost marker */}
